@@ -28,7 +28,7 @@ pipeline {
             steps {
                 sh '''
                     snyk auth $SNYK_TOKEN
-                    snyk test --severity-threshold=high
+                    snyk test --file=pom.xml --severity-threshold=high --debug
                 '''
             }
         }
