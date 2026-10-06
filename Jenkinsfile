@@ -28,7 +28,7 @@ pipeline {
             steps {
                 sh '''
                     snyk auth $SNYK_TOKEN
-                    snyk test --all-projects --severity-threshold=high
+                    snyk test --severity-threshold=high
                 '''
             }
         }
