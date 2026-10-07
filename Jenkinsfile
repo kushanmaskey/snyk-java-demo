@@ -2,9 +2,11 @@ pipeline {
     agent any
 
     environment {
-        SNYK_TOKEN = credentials('snyk-api-token')
-        SNYK_HOME  = '/opt/homebrew/bin'
-        PATH       = "/opt/homebrew/bin:/opt/homebrew/opt/openjdk@11/bin:${env.PATH}"
+        SNYK_TOKEN            = credentials('snyk-api-token')
+        SNYK_HOME             = '/opt/homebrew/bin'
+        SONAR_TOKEN           = credentials('sonar-jenkins')
+        PATH                  = "/opt/homebrew/bin:/opt/homebrew/opt/openjdk@11/bin:${env.PATH}"
+        MIN_COVERAGE_PERCENT  = '80'
     }
 
     tools {
@@ -21,6 +23,60 @@ pipeline {
         stage('Build') {
             steps {
                 sh 'mvn clean package -DskipTests'
+            }
+        }
+
+        stage('Test & Coverage') {
+            steps {
+                sh 'mvn test'
+            }
+            post {
+                always {
+                    junit '**/target/surefire-reports/*.xml'
+                }
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('SonarQube') {
+                    sh '''
+                        mvn sonar:sonar \
+                            -Dsonar.projectKey=snyk-java-demo \
+                            -Dsonar.projectName="Snyk Java Demo" \
+                            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
+                            -Dsonar.token=$SONAR_TOKEN
+                    '''
+                }
+            }
+        }
+
+        stage('Quality Gate') {
+            steps {
+                script {
+                    def coverage = sh(
+                        script: '''
+                            python3 -c "
+import xml.etree.ElementTree as ET
+tree = ET.parse('target/site/jacoco/jacoco.xml')
+root = tree.getroot()
+for c in root.findall('counter'):
+    if c.get('type') == 'LINE':
+        missed  = int(c.get('missed'))
+        covered = int(c.get('covered'))
+        total   = missed + covered
+        print(0 if total == 0 else round(covered / total * 100, 2))
+"
+                        ''',
+                        returnStdout: true
+                    ).trim().toDouble()
+
+                    echo "Line coverage: ${coverage}%  (minimum required: ${MIN_COVERAGE_PERCENT}%)"
+
+                    if (coverage < MIN_COVERAGE_PERCENT.toDouble()) {
+                        error "Quality Gate failed: coverage ${coverage}% is below the required ${MIN_COVERAGE_PERCENT}%."
+                    }
+                }
             }
         }
 
@@ -44,7 +100,7 @@ pipeline {
 
     post {
         always {
-            echo 'Pipeline complete. Review Snyk findings above.'
+            echo 'Pipeline complete. Review Snyk and SonarQube findings above.'
         }
     }
 }
