@@ -39,14 +39,14 @@ pipeline {
 
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv('SonarQube') {
-                    sh '''
-                        mvn sonar:sonar \
-                            -Dsonar.projectKey=snyk-java-demo \
-                            -Dsonar.projectName="Snyk Java Demo" \
-                            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
-                    '''
-                }
+                sh '''
+                    mvn sonar:sonar \
+                        -Dsonar.host.url=http://localhost:9000 \
+                        -Dsonar.token=$SONAR_API_TOKEN \
+                        -Dsonar.projectKey=snyk-java-demo \
+                        -Dsonar.projectName="Snyk Java Demo" \
+                        -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+                '''
             }
         }
 
