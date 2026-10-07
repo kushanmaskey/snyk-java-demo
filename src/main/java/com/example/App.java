@@ -2,16 +2,16 @@ package com.example;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
 
 public class App {
 
     // SAST Trigger 1: Hardcoded Secret / Credential
-    private static final String DB_PASSWORD = "SuperSecretPassword123!";
-    private static final String DB_USER = "admin";
-    private static final String DB_URL = "jdbc:mysql://localhost:3306/mydb";
-
+    private static final String DB_PASSWORD = System.getenv("DB_PASSWORD");
+    private static final String DB_USER = System.getenv("DB_USER");
+    private static final String DB_URL = System.getenv("DB_URL");
     public static void main(String[] args) {
         if (args.length > 0) {
             getUserData(args[0]);
@@ -26,7 +26,10 @@ public class App {
             Statement stmt = conn.createStatement();
             
             // Unsanitized input concatenated directly into SQL query
-            String query = "SELECT * FROM users WHERE username = '" + inputUsername + "'";
+            String query = "SELECT * FROM users WHERE username = ?";
+            PreparedStatement pstmt = conn.prepareStatement(query);
+            pstmt.setString(1, inputUsername);
+            
             ResultSet rs = stmt.executeQuery(query);
 
             while (rs.next()) {
