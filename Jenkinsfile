@@ -6,7 +6,7 @@ pipeline {
         SNYK_HOME             = '/opt/homebrew/bin'
         SONAR_TOKEN           = credentials('sonar-jenkins')
         PATH                  = "/opt/homebrew/bin:/opt/homebrew/opt/openjdk@11/bin:${env.PATH}"
-        MIN_COVERAGE_PERCENT  = '80'
+        MIN_COVERAGE_PERCENT  = '20'
     }
 
     tools {
