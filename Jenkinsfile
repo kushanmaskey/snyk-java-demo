@@ -4,7 +4,7 @@ pipeline {
     environment {
         SNYK_TOKEN            = credentials('snyk-api-token')
         SNYK_HOME             = '/opt/homebrew/bin'
-        SONAR_TOKEN           = credentials('sonar-jenkins')
+        SONAR_API_TOKEN       = credentials('sonar-jenkins')
         PATH                  = "/opt/homebrew/bin:/opt/homebrew/opt/openjdk@11/bin:${env.PATH}"
         MIN_COVERAGE_PERCENT  = '20'
     }
@@ -44,8 +44,7 @@ pipeline {
                         mvn sonar:sonar \
                             -Dsonar.projectKey=snyk-java-demo \
                             -Dsonar.projectName="Snyk Java Demo" \
-                            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
-                            -Dsonar.token=$SONAR_TOKEN
+                            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
                     '''
                 }
             }
