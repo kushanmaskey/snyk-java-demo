@@ -25,13 +25,23 @@ def parse_sca(path):
         vid = v.get('id', '')
         if vid not in seen:
             seen.add(vid)
+            cves = v.get('identifiers', {}).get('CVE', [])
+            cwes = v.get('identifiers', {}).get('CWE', [])
+            refs = [{'title': r.get('title', r.get('url', '')), 'url': r.get('url', '')}
+                    for r in v.get('references', []) if r.get('url')]
             items.append({
-                'id':       vid,
-                'title':    v.get('title', 'Unknown'),
-                'severity': sev,
-                'package':  v.get('moduleName', v.get('packageName', 'Unknown')),
-                'version':  v.get('version', ''),
-                'fixedIn':  ', '.join(v.get('fixedIn', [])) or 'No fix available',
+                'id':          vid,
+                'title':       v.get('title', 'Unknown'),
+                'severity':    sev,
+                'cvss':        v.get('cvssScore', ''),
+                'package':     v.get('moduleName', v.get('packageName', 'Unknown')),
+                'version':     v.get('version', ''),
+                'fixedIn':     ', '.join(v.get('fixedIn', [])) or 'No fix available',
+                'description': v.get('description', '')[:600],
+                'cves':        cves,
+                'cwes':        cwes,
+                'from':        ' → '.join(v.get('from', [])),
+                'refs':        refs[:4],
             })
     return {**counts, 'vulns': items}
 
@@ -59,18 +69,26 @@ def parse_sast(path):
                 uri  = phys.get('artifactLocation', {}).get('uri', '')
                 line = phys.get('region', {}).get('startLine', '')
                 loc  = f"{uri}:{line}" if line else uri
+            props    = rule.get('properties', {})
+            cwes     = [f"CWE-{c}" for c in props.get('cwe', [])]
+            help_txt = rule.get('help', {}).get('text', rule.get('fullDescription', {}).get('text', ''))
             items.append({
                 'ruleId':   rule_id,
                 'title':    rule.get('shortDescription', {}).get('text', rule_id),
                 'severity': sev,
-                'message':  result.get('message', {}).get('text', '')[:200],
+                'message':  result.get('message', {}).get('text', ''),
                 'location': loc,
+                'cwes':     cwes,
+                'help':     help_txt[:600],
             })
     return {**counts, 'issues': items}
 
 def badge(sev):
     colors = {'critical': '#c0392b', 'high': '#e74c3c', 'medium': '#e67e22', 'low': '#3498db'}
     return f'<span class="badge" style="background:{colors.get(sev,"#95a5a6")}">{sev.upper()}</span>'
+
+def esc(s):
+    return str(s).replace('\\', '\\\\').replace('`', '\\`').replace('$', '\\$')
 
 sca  = parse_sca(SCA_JSON)
 sast = parse_sast(SAST_JSON)
@@ -86,24 +104,33 @@ now         = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 def sca_rows():
     if not sca['vulns']:
         return '<tr><td colspan="5" class="empty">&#10003; No vulnerabilities found</td></tr>'
-    return ''.join(f'''<tr>
+    rows = []
+    for i, v in enumerate(sca['vulns']):
+        rows.append(f'''<tr class="clickable" onclick="openSca({i})" title="Click for details">
         <td>{badge(v["severity"])}</td>
         <td class="mono small">{v["id"]}</td>
         <td>{v["title"]}</td>
         <td class="mono small">{v["package"]} {v["version"]}</td>
         <td class="small">{v["fixedIn"]}</td>
-    </tr>''' for v in sca['vulns'])
+    </tr>''')
+    return ''.join(rows)
 
 def sast_rows():
     if not sast['issues']:
         return '<tr><td colspan="5" class="empty">&#10003; No issues found</td></tr>'
-    return ''.join(f'''<tr>
-        <td>{badge(i["severity"])}</td>
-        <td class="mono small">{i["ruleId"]}</td>
-        <td>{i["title"]}</td>
-        <td class="small">{i["message"]}</td>
-        <td class="mono small">{i["location"]}</td>
-    </tr>''' for i in sast['issues'])
+    rows = []
+    for i, issue in enumerate(sast['issues']):
+        rows.append(f'''<tr class="clickable" onclick="openSast({i})" title="Click for details">
+        <td>{badge(issue["severity"])}</td>
+        <td class="mono small">{issue["ruleId"]}</td>
+        <td>{issue["title"]}</td>
+        <td class="small">{issue["message"][:120]}{"..." if len(issue["message"]) > 120 else ""}</td>
+        <td class="mono small">{issue["location"]}</td>
+    </tr>''')
+    return ''.join(rows)
+
+sca_json_str  = json.dumps(sca['vulns'],   ensure_ascii=False)
+sast_json_str = json.dumps(sast['issues'], ensure_ascii=False)
 
 html = f'''<!DOCTYPE html>
 <html lang="en">
@@ -115,7 +142,7 @@ html = f'''<!DOCTYPE html>
   body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
          background: #f4f5f7; color: #222; padding: 32px; }}
   header h1     {{ font-size: 24px; color: #111; }}
-  header h1 span {{ color: #6c757d; }}
+  header h1 span {{ color: #6c757d; font-size: 14px; font-weight: 400; }}
   header p      {{ color: #888; font-size: 13px; margin-top: 4px; }}
 
   .cards {{ display: flex; flex-wrap: wrap; gap: 14px; margin: 28px 0; }}
@@ -130,15 +157,15 @@ html = f'''<!DOCTYPE html>
   .med   .num {{ color: #e67e22; }}
   .lw    .num {{ color: #3498db; }}
 
-  .tabs        {{ display: flex; gap: 4px; margin-bottom: 0; }}
-  .tab-btn     {{ padding: 10px 24px; border-radius: 8px 8px 0 0; border: 1px solid #dde1e7;
-                  border-bottom: none; background: #e9ecef; color: #888; cursor: pointer;
-                  font-size: 14px; font-weight: 600; transition: all .15s; }}
-  .tab-btn:hover   {{ color: #444; }}
-  .tab-btn.active  {{ background: #fff; color: #111; border-color: #dde1e7; }}
+  .tabs       {{ display: flex; gap: 4px; }}
+  .tab-btn    {{ padding: 10px 24px; border-radius: 8px 8px 0 0; border: 1px solid #dde1e7;
+                 border-bottom: none; background: #e9ecef; color: #888; cursor: pointer;
+                 font-size: 14px; font-weight: 600; transition: all .15s; }}
+  .tab-btn:hover  {{ color: #444; }}
+  .tab-btn.active {{ background: #fff; color: #111; border-color: #dde1e7; }}
 
-  .tab-panel   {{ display: none; background: #fff; border: 1px solid #dde1e7;
-                  border-radius: 0 8px 8px 8px; padding: 24px; }}
+  .tab-panel        {{ display: none; background: #fff; border: 1px solid #dde1e7;
+                       border-radius: 0 8px 8px 8px; padding: 24px; }}
   .tab-panel.active {{ display: block; }}
 
   .pills {{ display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }}
@@ -148,23 +175,48 @@ html = f'''<!DOCTYPE html>
   .pill.medium   {{ background: #fef6ec; color: #e67e22; border: 1px solid #fad7a0; }}
   .pill.low      {{ background: #eaf4fb; color: #2980b9; border: 1px solid #aed6f1; }}
 
-  table  {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
-  th     {{ text-align: left; padding: 9px 12px; color: #999; border-bottom: 1px solid #dde1e7;
-            font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }}
-  td     {{ padding: 9px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }}
+  table    {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
+  th       {{ text-align: left; padding: 9px 12px; color: #999; border-bottom: 1px solid #dde1e7;
+              font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }}
+  td       {{ padding: 9px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }}
   tr:last-child td {{ border-bottom: none; }}
-  tr:hover td {{ background: #f8f9fa; }}
+  .clickable {{ cursor: pointer; }}
+  .clickable:hover td {{ background: #f0f4ff; }}
+
   .badge {{ padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700;
             color: #fff; white-space: nowrap; }}
   .mono  {{ font-family: monospace; }}
   .small {{ font-size: 12px; }}
   .empty {{ text-align: center; color: #27ae60; padding: 20px; }}
+
+  /* Modal */
+  .overlay {{ display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45);
+              z-index: 100; align-items: center; justify-content: center; }}
+  .overlay.open {{ display: flex; }}
+  .modal  {{ background: #fff; border-radius: 12px; padding: 32px; max-width: 680px; width: 90%;
+             max-height: 85vh; overflow-y: auto; position: relative; box-shadow: 0 8px 40px rgba(0,0,0,.18); }}
+  .modal-close {{ position: absolute; top: 16px; right: 20px; font-size: 22px; cursor: pointer;
+                  color: #aaa; border: none; background: none; line-height: 1; }}
+  .modal-close:hover {{ color: #333; }}
+  .modal h2   {{ font-size: 18px; color: #111; margin-bottom: 6px; padding-right: 32px; }}
+  .modal-meta {{ display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; align-items: center; }}
+  .modal-section       {{ margin-bottom: 18px; }}
+  .modal-section label {{ font-size: 11px; text-transform: uppercase; letter-spacing: .5px;
+                          color: #999; display: block; margin-bottom: 4px; }}
+  .modal-section p     {{ font-size: 13px; line-height: 1.6; color: #333; }}
+  .modal-section .mono {{ font-size: 12px; background: #f4f5f7; padding: 8px 12px;
+                          border-radius: 6px; display: block; }}
+  .tag {{ display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 12px;
+          font-weight: 600; background: #f0f0f0; color: #555; margin: 2px; }}
+  .ref-link {{ display: block; font-size: 12px; color: #2980b9; margin: 3px 0;
+               text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }}
+  .cvss-score {{ font-size: 22px; font-weight: 700; }}
 </style>
 </head>
 <body>
 
 <header>
-  <h1>Cyber Security Dashboard <span style="font-size:14px;color:#666;font-weight:400">CSD</span></h1>
+  <h1>Cyber Security Dashboard <span>CSD</span></h1>
   <p>Project: snyk-java-demo &nbsp;&middot;&nbsp; Scanned: {now}</p>
 </header>
 
@@ -178,12 +230,8 @@ html = f'''<!DOCTYPE html>
 </div>
 
 <div class="tabs">
-  <button class="tab-btn active" onclick="showTab('sca', this)">
-    SCA &mdash; Dependencies ({sca_total})
-  </button>
-  <button class="tab-btn" onclick="showTab('sast', this)">
-    SAST &mdash; Code Security ({sast_total})
-  </button>
+  <button class="tab-btn active" onclick="showTab('sca', this)">SCA &mdash; Dependencies ({sca_total})</button>
+  <button class="tab-btn"        onclick="showTab('sast', this)">SAST &mdash; Code Security ({sast_total})</button>
 </div>
 
 <div id="sca" class="tab-panel active">
@@ -194,9 +242,7 @@ html = f'''<!DOCTYPE html>
     <span class="pill low">Low: {sca.get("low", 0)}</span>
   </div>
   <table>
-    <thead><tr>
-      <th>Severity</th><th>CVE / ID</th><th>Title</th><th>Package</th><th>Fixed In</th>
-    </tr></thead>
+    <thead><tr><th>Severity</th><th>CVE / ID</th><th>Title</th><th>Package</th><th>Fixed In</th></tr></thead>
     <tbody>{sca_rows()}</tbody>
   </table>
 </div>
@@ -208,20 +254,83 @@ html = f'''<!DOCTYPE html>
     <span class="pill low">Low: {sast.get("low", 0)}</span>
   </div>
   <table>
-    <thead><tr>
-      <th>Severity</th><th>Rule ID</th><th>Title</th><th>Message</th><th>Location</th>
-    </tr></thead>
+    <thead><tr><th>Severity</th><th>Rule ID</th><th>Title</th><th>Message</th><th>Location</th></tr></thead>
     <tbody>{sast_rows()}</tbody>
   </table>
 </div>
 
+<!-- Modal -->
+<div class="overlay" id="overlay" onclick="closeModal(event)">
+  <div class="modal" id="modal">
+    <button class="modal-close" onclick="closeOverlay()">&times;</button>
+    <h2 id="m-title"></h2>
+    <div class="modal-meta" id="m-meta"></div>
+    <div id="m-body"></div>
+  </div>
+</div>
+
 <script>
+const scaData  = {sca_json_str};
+const sastData = {sast_json_str};
+
 function showTab(id, btn) {{
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   btn.classList.add('active');
 }}
+
+function sevColor(s) {{
+  return {{critical:'#c0392b', high:'#e74c3c', medium:'#e67e22', low:'#3498db'}}[s] || '#999';
+}}
+
+function badgeHtml(s) {{
+  return `<span class="badge" style="background:${{sevColor(s)}}">${{s.toUpperCase()}}</span>`;
+}}
+
+function openModal(title, metaHtml, bodyHtml) {{
+  document.getElementById('m-title').innerHTML = title;
+  document.getElementById('m-meta').innerHTML  = metaHtml;
+  document.getElementById('m-body').innerHTML  = bodyHtml;
+  document.getElementById('overlay').classList.add('open');
+}}
+
+function openSca(i) {{
+  const v = scaData[i];
+  const cveLinks = v.cves.map(c => `<span class="tag">${{c}}</span>`).join(' ');
+  const cweLinks = v.cwes.map(c => `<span class="tag">${{c}}</span>`).join(' ');
+  const refHtml  = v.refs.map(r => `<a class="ref-link" href="${{r.url}}" target="_blank">${{r.title || r.url}}</a>`).join('');
+  const meta = `
+    ${{badgeHtml(v.severity)}}
+    ${{v.cvss ? `<span class="cvss-score" style="color:${{sevColor(v.severity)}}">${{v.cvss}}</span><span style="font-size:12px;color:#999">CVSS</span>` : ''}}
+    ${{cveLinks}}${{cweLinks}}`;
+  const body = `
+    <div class="modal-section"><label>Package</label><code class="mono">${{v.package}} ${{v.version}}</code></div>
+    <div class="modal-section"><label>Fixed In</label><p>${{v.fixedIn}}</p></div>
+    ${{v.from ? `<div class="modal-section"><label>Dependency Path</label><code class="mono">${{v.from}}</code></div>` : ''}}
+    ${{v.description ? `<div class="modal-section"><label>Description</label><p>${{v.description}}</p></div>` : ''}}
+    ${{refHtml ? `<div class="modal-section"><label>References</label>${{refHtml}}</div>` : ''}}`;
+  openModal(v.title, meta, body);
+}}
+
+function openSast(i) {{
+  const v = sastData[i];
+  const cweHtml = v.cwes.map(c => `<span class="tag">${{c}}</span>`).join(' ');
+  const meta = `${{badgeHtml(v.severity)}} ${{cweHtml}}`;
+  const body = `
+    <div class="modal-section"><label>Location</label><code class="mono">${{v.location}}</code></div>
+    <div class="modal-section"><label>Message</label><p>${{v.message}}</p></div>
+    ${{v.help ? `<div class="modal-section"><label>Details</label><p>${{v.help}}</p></div>` : ''}}`;
+  openModal(v.title, meta, body);
+}}
+
+function closeModal(e) {{
+  if (e.target === document.getElementById('overlay')) closeOverlay();
+}}
+function closeOverlay() {{
+  document.getElementById('overlay').classList.remove('open');
+}}
+document.addEventListener('keydown', e => {{ if (e.key === 'Escape') closeOverlay(); }});
 </script>
 </body>
 </html>'''
