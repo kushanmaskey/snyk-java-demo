@@ -39,10 +39,23 @@ def jira_post(path, body):
         print(f"  POST error {e.code}: {e.read().decode()[:200]}")
         return None
 
-def ticket_exists(label):
+def find_ticket(label):
     jql    = f'project = "{PROJECT_KEY}" AND labels = "{label}"'
     result = jira_get(f'/search?jql={urllib.parse.quote(jql)}&maxResults=1')
-    return bool(result and result.get('total', 0) > 0)
+    if result and result.get('total', 0) > 0:
+        return result['issues'][0]
+    return None
+
+def jira_put(path, body):
+    data = json.dumps(body).encode()
+    req  = urllib.request.Request(f"{JIRA_SITE}/rest/api/3{path}",
+                                  data=data, headers=headers(), method='PUT')
+    try:
+        with urllib.request.urlopen(req) as r:
+            return True
+    except urllib.error.HTTPError as e:
+        print(f"  PUT error {e.code}: {e.read().decode()[:200]}")
+        return False
 
 def adf(*paragraphs):
     return {
@@ -54,8 +67,17 @@ def adf(*paragraphs):
     }
 
 def create_ticket(summary, paragraphs, severity, label):
-    if ticket_exists(label):
-        print(f"  SKIP (exists): {label}")
+    existing = find_ticket(label)
+    if existing:
+        issue_key    = existing['key']
+        current_lbls = existing['fields'].get('labels', [])
+        sev_label    = f'severity-{severity}'
+        if sev_label not in current_lbls:
+            new_labels = list(set(current_lbls + ['snyk-security', sev_label, label]))
+            jira_put(f'/issue/{issue_key}', {'fields': {'labels': new_labels}})
+            print(f"  UPDATED {issue_key}: added {sev_label}")
+        else:
+            print(f"  SKIP (exists): {label}")
         return
     body = {
         'fields': {
