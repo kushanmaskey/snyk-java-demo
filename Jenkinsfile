@@ -5,6 +5,11 @@ pipeline {
         pollSCM('H/2 * * * *')
     }
 
+    options {
+        disableConcurrentBuilds()
+        quietPeriod(30)
+    }
+
     environment {
         SNYK_TOKEN            = credentials('snyk-api-token')
         SNYK_HOME             = '/opt/homebrew/bin'
