@@ -4,7 +4,7 @@ from datetime import datetime
 
 SCA_JSON  = 'snyk-sca-report.json'
 SAST_JSON = 'snyk-sast-report.json'
-OUTPUT    = '/opt/homebrew/Cellar/tomcat/11.0.25/libexec/webapps/ROOT/snyk-dashboard.html'
+OUTPUT    = '/opt/homebrew/Cellar/tomcat/11.0.25/libexec/webapps/ROOT/csd.html'
 
 def parse_sca(path):
     try:
@@ -109,7 +109,7 @@ html = f'''<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Snyk Security Dashboard</title>
+<title>Cyber Security Dashboard</title>
 <style>
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
   body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -164,7 +164,7 @@ html = f'''<!DOCTYPE html>
 <body>
 
 <header>
-  <h1><span>&#11041; Snyk</span> Security Dashboard</h1>
+  <h1>Cyber Security Dashboard <span style="font-size:14px;color:#666;font-weight:400">CSD</span></h1>
   <p>Project: snyk-java-demo &nbsp;&middot;&nbsp; Scanned: {now}</p>
 </header>
 
@@ -229,6 +229,6 @@ function showTab(id, btn) {{
 with open(OUTPUT, 'w') as f:
     f.write(html)
 
-print(f"Dashboard written to {OUTPUT}")
+print(f"CSD written to {OUTPUT}")
 print(f"  SCA  — Critical:{sca.get('critical',0)} High:{sca.get('high',0)} Medium:{sca.get('medium',0)} Low:{sca.get('low',0)}")
 print(f"  SAST — High:{sast.get('high',0)} Medium:{sast.get('medium',0)} Low:{sast.get('low',0)}")
