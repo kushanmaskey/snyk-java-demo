@@ -83,6 +83,7 @@ for c in root.findall('counter'):
             steps {
                 sh '''
                     snyk auth $SNYK_TOKEN
+                    snyk test --file=pom.xml --severity-threshold=low || true
                     snyk test --file=pom.xml --severity-threshold=high
                 '''
             }
