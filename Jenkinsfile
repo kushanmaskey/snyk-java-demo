@@ -84,8 +84,6 @@ for c in root.findall('counter'):
                 sh '''
                     snyk auth $SNYK_TOKEN
                     snyk test --file=pom.xml --json > snyk-sca-report.json || true
-                    snyk-to-html -i snyk-sca-report.json -o snyk-sca-report.html
-                    cp snyk-sca-report.html /opt/homebrew/Cellar/tomcat/11.0.25/libexec/webapps/ROOT/snyk-sca-report.html
                     snyk test --file=pom.xml --severity-threshold=high
                 '''
             }
@@ -95,10 +93,14 @@ for c in root.findall('counter'):
             steps {
                 sh '''
                     snyk code test --json > snyk-sast-report.json || true
-                    snyk-to-html -i snyk-sast-report.json -o snyk-sast-report.html
-                    cp snyk-sast-report.html /opt/homebrew/Cellar/tomcat/11.0.25/libexec/webapps/ROOT/snyk-sast-report.html
                     snyk code test --severity-threshold=high
                 '''
+            }
+        }
+
+        stage('Security Dashboard') {
+            steps {
+                sh 'python3 generate-snyk-dashboard.py'
             }
         }
     }
