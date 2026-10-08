@@ -211,6 +211,9 @@ html = f'''<!DOCTYPE html>
   .ref-link {{ display: block; font-size: 12px; color: #2980b9; margin: 3px 0;
                text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }}
   .cvss-score {{ font-size: 22px; font-weight: 700; }}
+  .remediation {{ background: #eafaf1; border-left: 4px solid #27ae60; border-radius: 6px;
+                  padding: 12px 16px; margin-top: 4px; }}
+  .remediation p {{ color: #1e8449; font-size: 13px; line-height: 1.6; }}
 </style>
 </head>
 <body>
@@ -304,11 +307,14 @@ function openSca(i) {{
     ${{badgeHtml(v.severity)}}
     ${{v.cvss ? `<span class="cvss-score" style="color:${{sevColor(v.severity)}}">${{v.cvss}}</span><span style="font-size:12px;color:#999">CVSS</span>` : ''}}
     ${{cveLinks}}${{cweLinks}}`;
+  const remediationText = v.fixedIn !== 'No fix available'
+    ? `Upgrade <strong>${{v.package}}</strong> from version <strong>${{v.version}}</strong> to <strong>${{v.fixedIn}}</strong>. Update your <code>pom.xml</code> dependency version and rebuild.`
+    : 'No fix is currently available. Monitor the package for future releases and consider alternative libraries.';
   const body = `
     <div class="modal-section"><label>Package</label><code class="mono">${{v.package}} ${{v.version}}</code></div>
-    <div class="modal-section"><label>Fixed In</label><p>${{v.fixedIn}}</p></div>
     ${{v.from ? `<div class="modal-section"><label>Dependency Path</label><code class="mono">${{v.from}}</code></div>` : ''}}
     ${{v.description ? `<div class="modal-section"><label>Description</label><p>${{v.description}}</p></div>` : ''}}
+    <div class="modal-section"><label>Remediation</label><div class="remediation"><p>${{remediationText}}</p></div></div>
     ${{refHtml ? `<div class="modal-section"><label>References</label>${{refHtml}}</div>` : ''}}`;
   openModal(v.title, meta, body);
 }}
@@ -319,8 +325,8 @@ function openSast(i) {{
   const meta = `${{badgeHtml(v.severity)}} ${{cweHtml}}`;
   const body = `
     <div class="modal-section"><label>Location</label><code class="mono">${{v.location}}</code></div>
-    <div class="modal-section"><label>Message</label><p>${{v.message}}</p></div>
-    ${{v.help ? `<div class="modal-section"><label>Details</label><p>${{v.help}}</p></div>` : ''}}`;
+    <div class="modal-section"><label>Issue</label><p>${{v.message}}</p></div>
+    ${{v.help ? `<div class="modal-section"><label>Remediation</label><div class="remediation"><p>${{v.help}}</p></div></div>` : ''}}`;
   openModal(v.title, meta, body);
 }}
 
