@@ -113,17 +113,17 @@ html = f'''<!DOCTYPE html>
 <style>
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
   body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-         background: #0d0d1a; color: #d0d0e0; padding: 32px; }}
-  header h1     {{ font-size: 24px; color: #fff; }}
-  header h1 span {{ color: #9b59b6; }}
-  header p      {{ color: #666; font-size: 13px; margin-top: 4px; }}
+         background: #f4f5f7; color: #222; padding: 32px; }}
+  header h1     {{ font-size: 24px; color: #111; }}
+  header h1 span {{ color: #6c757d; }}
+  header p      {{ color: #888; font-size: 13px; margin-top: 4px; }}
 
   .cards {{ display: flex; flex-wrap: wrap; gap: 14px; margin: 28px 0; }}
-  .card  {{ background: #16162a; border: 1px solid #252540; border-radius: 10px;
+  .card  {{ background: #fff; border: 1px solid #dde1e7; border-radius: 10px;
             padding: 18px 24px; text-align: center; min-width: 120px; }}
   .card .num {{ font-size: 38px; font-weight: 700; line-height: 1; }}
-  .card .lbl {{ font-size: 11px; color: #888; margin-top: 6px; text-transform: uppercase; letter-spacing: .5px; }}
-  .total .num {{ color: #fff; }}
+  .card .lbl {{ font-size: 11px; color: #999; margin-top: 6px; text-transform: uppercase; letter-spacing: .5px; }}
+  .total .num {{ color: #222; }}
   .sca   .num {{ color: #e74c3c; }}
   .sast  .num {{ color: #e67e22; }}
   .hc    .num {{ color: #e74c3c; }}
@@ -131,29 +131,29 @@ html = f'''<!DOCTYPE html>
   .lw    .num {{ color: #3498db; }}
 
   .tabs        {{ display: flex; gap: 4px; margin-bottom: 0; }}
-  .tab-btn     {{ padding: 10px 24px; border-radius: 8px 8px 0 0; border: 1px solid #252540;
-                  border-bottom: none; background: #16162a; color: #888; cursor: pointer;
+  .tab-btn     {{ padding: 10px 24px; border-radius: 8px 8px 0 0; border: 1px solid #dde1e7;
+                  border-bottom: none; background: #e9ecef; color: #888; cursor: pointer;
                   font-size: 14px; font-weight: 600; transition: all .15s; }}
-  .tab-btn:hover   {{ color: #ccc; }}
-  .tab-btn.active  {{ background: #1e1e38; color: #fff; border-color: #3a3a60; }}
+  .tab-btn:hover   {{ color: #444; }}
+  .tab-btn.active  {{ background: #fff; color: #111; border-color: #dde1e7; }}
 
-  .tab-panel   {{ display: none; background: #1e1e38; border: 1px solid #3a3a60;
+  .tab-panel   {{ display: none; background: #fff; border: 1px solid #dde1e7;
                   border-radius: 0 8px 8px 8px; padding: 24px; }}
   .tab-panel.active {{ display: block; }}
 
   .pills {{ display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }}
   .pill  {{ padding: 3px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }}
-  .pill.critical {{ background: #c0392b22; color: #e74c3c; border: 1px solid #c0392b55; }}
-  .pill.high     {{ background: #e74c3c22; color: #e74c3c; border: 1px solid #e74c3c55; }}
-  .pill.medium   {{ background: #e67e2222; color: #e67e22; border: 1px solid #e67e2255; }}
-  .pill.low      {{ background: #3498db22; color: #3498db; border: 1px solid #3498db55; }}
+  .pill.critical {{ background: #fdecea; color: #c0392b; border: 1px solid #f5c6c2; }}
+  .pill.high     {{ background: #fdecea; color: #e74c3c; border: 1px solid #f5c6c2; }}
+  .pill.medium   {{ background: #fef6ec; color: #e67e22; border: 1px solid #fad7a0; }}
+  .pill.low      {{ background: #eaf4fb; color: #2980b9; border: 1px solid #aed6f1; }}
 
   table  {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
-  th     {{ text-align: left; padding: 9px 12px; color: #777; border-bottom: 1px solid #2a2a48;
+  th     {{ text-align: left; padding: 9px 12px; color: #999; border-bottom: 1px solid #dde1e7;
             font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }}
-  td     {{ padding: 9px 12px; border-bottom: 1px solid #1c1c30; vertical-align: top; }}
+  td     {{ padding: 9px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }}
   tr:last-child td {{ border-bottom: none; }}
-  tr:hover td {{ background: #22223a; }}
+  tr:hover td {{ background: #f8f9fa; }}
   .badge {{ padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700;
             color: #fff; white-space: nowrap; }}
   .mono  {{ font-family: monospace; }}
