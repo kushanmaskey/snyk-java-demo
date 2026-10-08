@@ -36,6 +36,13 @@
             <version>3.18.0</version>
         </dependency>
 
+        <!-- Vulnerable SnakeYAML (Triggers SCA: medium-severity DoS CVEs) -->
+        <dependency>
+            <groupId>org.yaml</groupId>
+            <artifactId>snakeyaml</artifactId>
+            <version>1.31</version>
+        </dependency>
+
         <!-- JUnit 5 for unit testing -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
