@@ -9,6 +9,7 @@ pipeline {
         SNYK_TOKEN            = credentials('snyk-api-token')
         SNYK_HOME             = '/opt/homebrew/bin'
         SONAR_API_TOKEN       = credentials('sonar-jenkins')
+        JIRA_API_TOKEN        = credentials('jira-api-token')
         PATH                  = "/opt/homebrew/bin:/opt/homebrew/opt/openjdk@11/bin:${env.PATH}"
         MIN_COVERAGE_PERCENT  = '20'
     }
@@ -105,6 +106,12 @@ for c in root.findall('counter'):
         stage('Security Dashboard') {
             steps {
                 sh 'python3 generate-snyk-dashboard.py'
+            }
+        }
+
+        stage('JIRA Ticket Creation') {
+            steps {
+                sh 'python3 create-jira-tickets.py'
             }
         }
     }
