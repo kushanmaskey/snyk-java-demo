@@ -29,6 +29,20 @@ def parse_sca(path):
             cwes = v.get('identifiers', {}).get('CWE', [])
             refs = [{'title': r.get('title', r.get('url', '')), 'url': r.get('url', '')}
                     for r in v.get('references', []) if r.get('url')]
+            upgrade_path = [str(u) for u in v.get('upgradePath', []) if u]
+            is_upgradable = v.get('isUpgradable', False)
+            is_patchable  = v.get('isPatchable', False)
+            fixed_in      = v.get('fixedIn', [])
+
+            if is_upgradable and upgrade_path:
+                remediation = f"Upgrade to {upgrade_path[-1]}"
+            elif fixed_in:
+                remediation = f"Upgrade to version {', '.join(fixed_in)}"
+            elif is_patchable:
+                remediation = "Apply available Snyk patch"
+            else:
+                remediation = "No direct fix available — consider removing or replacing this dependency"
+
             items.append({
                 'id':          vid,
                 'title':       v.get('title', 'Unknown'),
@@ -36,12 +50,14 @@ def parse_sca(path):
                 'cvss':        v.get('cvssScore', ''),
                 'package':     v.get('moduleName', v.get('packageName', 'Unknown')),
                 'version':     v.get('version', ''),
-                'fixedIn':     ', '.join(v.get('fixedIn', [])) or 'No fix available',
+                'fixedIn':     ', '.join(fixed_in) or 'No fix available',
                 'description': v.get('description', '')[:600],
                 'cves':        cves,
                 'cwes':        cwes,
                 'from':        ' → '.join(v.get('from', [])),
                 'refs':        refs[:4],
+                'remediation': remediation,
+                'upgradePath': ' → '.join(upgrade_path) if upgrade_path else '',
             })
     return {**counts, 'vulns': items}
 
@@ -71,15 +87,23 @@ def parse_sast(path):
                 loc  = f"{uri}:{line}" if line else uri
             props    = rule.get('properties', {})
             cwes     = [f"CWE-{c}" for c in props.get('cwe', [])]
-            help_txt = rule.get('help', {}).get('text', rule.get('fullDescription', {}).get('text', ''))
+            help_txt    = rule.get('help', {}).get('text', rule.get('fullDescription', {}).get('text', ''))
+            fix_txt     = rule.get('help', {}).get('markdown', '')
+            remediation = ''
+            if fix_txt:
+                for line in fix_txt.splitlines():
+                    if any(k in line.lower() for k in ['fix', 'remediat', 'recommend', 'avoid', 'use ', 'instead', 'replace']):
+                        remediation += line.strip() + ' '
+            remediation = remediation.strip()[:500] or 'Review the code location and apply secure coding practices per the rule guidance.'
             items.append({
-                'ruleId':   rule_id,
-                'title':    rule.get('shortDescription', {}).get('text', rule_id),
-                'severity': sev,
-                'message':  result.get('message', {}).get('text', ''),
-                'location': loc,
-                'cwes':     cwes,
-                'help':     help_txt[:600],
+                'ruleId':      rule_id,
+                'title':       rule.get('shortDescription', {}).get('text', rule_id),
+                'severity':    sev,
+                'message':     result.get('message', {}).get('text', ''),
+                'location':    loc,
+                'cwes':        cwes,
+                'help':        help_txt[:600],
+                'remediation': remediation,
             })
     return {**counts, 'issues': items}
 
@@ -210,6 +234,10 @@ html = f'''<!DOCTYPE html>
           font-weight: 600; background: #f0f0f0; color: #555; margin: 2px; }}
   .ref-link {{ display: block; font-size: 12px; color: #2980b9; margin: 3px 0;
                text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }}
+  .remediation-box {{ background: #f0faf4; border-left: 4px solid #27ae60;
+                      border-radius: 0 6px 6px 0; padding: 12px 14px !important; }}
+  .remediation-box label {{ color: #1e8449 !important; }}
+  .remediation-box p {{ color: #1a5e35; }}
   .cvss-score {{ font-size: 22px; font-weight: 700; }}
 </style>
 </head>
@@ -306,9 +334,13 @@ function openSca(i) {{
     ${{cveLinks}}${{cweLinks}}`;
   const body = `
     <div class="modal-section"><label>Package</label><code class="mono">${{v.package}} ${{v.version}}</code></div>
-    <div class="modal-section"><label>Fixed In</label><p>${{v.fixedIn}}</p></div>
     ${{v.from ? `<div class="modal-section"><label>Dependency Path</label><code class="mono">${{v.from}}</code></div>` : ''}}
     ${{v.description ? `<div class="modal-section"><label>Description</label><p>${{v.description}}</p></div>` : ''}}
+    <div class="modal-section remediation-box">
+      <label>&#128736; Remediation</label>
+      <p>${{v.remediation}}</p>
+      ${{v.upgradePath ? `<code class="mono" style="margin-top:6px;display:block">Upgrade path: ${{v.upgradePath}}</code>` : ''}}
+    </div>
     ${{refHtml ? `<div class="modal-section"><label>References</label>${{refHtml}}</div>` : ''}}`;
   openModal(v.title, meta, body);
 }}
@@ -320,7 +352,11 @@ function openSast(i) {{
   const body = `
     <div class="modal-section"><label>Location</label><code class="mono">${{v.location}}</code></div>
     <div class="modal-section"><label>Message</label><p>${{v.message}}</p></div>
-    ${{v.help ? `<div class="modal-section"><label>Details</label><p>${{v.help}}</p></div>` : ''}}`;
+    ${{v.help ? `<div class="modal-section"><label>Details</label><p>${{v.help}}</p></div>` : ''}}
+    <div class="modal-section remediation-box">
+      <label>&#128736; Remediation</label>
+      <p>${{v.remediation}}</p>
+    </div>`;
   openModal(v.title, meta, body);
 }}
 
