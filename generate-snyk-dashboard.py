@@ -45,6 +45,47 @@ def parse_sca(path):
             })
     return {**counts, 'vulns': items}
 
+CWE_REMEDIATION = {
+    '22':  'Validate and canonicalize file paths. Use a whitelist of allowed directories and reject paths containing ".." or absolute paths from user input.',
+    '78':  'Avoid passing user-controlled input to OS commands. Use language APIs instead of shell execution. If shell is required, whitelist allowed values and never concatenate raw input.',
+    '79':  'Encode all output rendered in HTML. Use a templating engine with auto-escaping. Apply Content-Security-Policy headers.',
+    '89':  'Use parameterized queries or prepared statements. Never concatenate user input into SQL strings.',
+    '94':  'Avoid evaluating user-controlled input as code. Use safe data formats (JSON/XML) instead of eval or reflection.',
+    '200': 'Restrict access to sensitive data. Apply the principle of least privilege and ensure proper authentication/authorization checks.',
+    '295': 'Enable full certificate chain validation. Do not override or disable TLS hostname verification in production code.',
+    '326': 'Use strong, modern encryption algorithms (AES-256, RSA-2048+). Avoid MD5, SHA-1, DES, and RC4.',
+    '327': 'Replace broken or weak cryptographic algorithms with industry-standard alternatives. Use well-maintained crypto libraries.',
+    '330': 'Use a cryptographically secure random number generator (e.g., java.security.SecureRandom) for security-sensitive values.',
+    '502': 'Avoid deserializing data from untrusted sources. Use safe formats like JSON with schema validation instead of native serialization.',
+    '601': 'Validate redirect URLs against a strict whitelist. Reject or encode URLs that point to external or unexpected domains.',
+    '611': 'Disable external entity processing in XML parsers (set FEATURE_SECURE_PROCESSING). Use a safe XML parsing configuration.',
+    '918': 'Validate and restrict URLs before making server-side requests. Use an allowlist of permitted hosts/schemes. Block requests to internal/private IP ranges.',
+}
+
+def sast_remediation(cwes, help_txt, rule_id):
+    if help_txt:
+        return help_txt
+    for cwe in cwes:
+        num = cwe.replace('CWE-', '')
+        if num in CWE_REMEDIATION:
+            return CWE_REMEDIATION[num]
+    name = rule_id.split('/')[-1].lower()
+    if 'ssrf' in name or 'requestforgery' in name:
+        return CWE_REMEDIATION['918']
+    if 'sql' in name or 'injection' in name:
+        return CWE_REMEDIATION['89']
+    if 'command' in name:
+        return CWE_REMEDIATION['78']
+    if 'xss' in name or 'script' in name:
+        return CWE_REMEDIATION['79']
+    if 'path' in name or 'traversal' in name:
+        return CWE_REMEDIATION['22']
+    if 'deserializ' in name:
+        return CWE_REMEDIATION['502']
+    if 'crypto' in name or 'cipher' in name:
+        return CWE_REMEDIATION['327']
+    return 'Review the flagged code and apply the principle of least privilege. Sanitize all external inputs and avoid trusting user-controlled data in security-sensitive operations.'
+
 def parse_sast(path):
     try:
         with open(path) as f:
@@ -73,13 +114,13 @@ def parse_sast(path):
             cwes     = [f"CWE-{c}" for c in props.get('cwe', [])]
             help_txt = rule.get('help', {}).get('text', rule.get('fullDescription', {}).get('text', ''))
             items.append({
-                'ruleId':   rule_id,
-                'title':    rule.get('shortDescription', {}).get('text', rule_id),
-                'severity': sev,
-                'message':  result.get('message', {}).get('text', ''),
-                'location': loc,
-                'cwes':     cwes,
-                'help':     help_txt[:600],
+                'ruleId':      rule_id,
+                'title':       rule.get('shortDescription', {}).get('text', rule_id),
+                'severity':    sev,
+                'message':     result.get('message', {}).get('text', ''),
+                'location':    loc,
+                'cwes':        cwes,
+                'remediation': sast_remediation(cwes, help_txt[:600], rule_id),
             })
     return {**counts, 'issues': items}
 
@@ -326,7 +367,7 @@ function openSast(i) {{
   const body = `
     <div class="modal-section"><label>Location</label><code class="mono">${{v.location}}</code></div>
     <div class="modal-section"><label>Issue</label><p>${{v.message}}</p></div>
-    ${{v.help ? `<div class="modal-section"><label>Remediation</label><div class="remediation"><p>${{v.help}}</p></div></div>` : ''}}`;
+    <div class="modal-section"><label>Remediation</label><div class="remediation"><p>${{v.remediation}}</p></div></div>`;
   openModal(v.title, meta, body);
 }}
 
