@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    triggers {
+        pollSCM('H/2 * * * *')
+    }
+
     environment {
         SNYK_TOKEN            = credentials('snyk-api-token')
         SNYK_HOME             = '/opt/homebrew/bin'
