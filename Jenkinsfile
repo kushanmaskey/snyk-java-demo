@@ -9,11 +9,6 @@ pipeline {
         disableConcurrentBuilds(abortPrevious: true)
     }
 
-    options {
-        disableConcurrentBuilds(abortPrevious: true)
-        quietPeriod(60)
-    }
-
     environment {
         SNYK_TOKEN            = credentials('snyk-api-token')
         SNYK_HOME             = '/opt/homebrew/bin'
