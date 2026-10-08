@@ -2,12 +2,11 @@ pipeline {
     agent any
 
     triggers {
-        pollSCM('H/2 * * * *')
+        githubPush()
     }
 
     options {
         disableConcurrentBuilds(abortPrevious: true)
-        quietPeriod(60)
     }
 
     environment {
