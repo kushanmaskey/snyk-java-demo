@@ -219,7 +219,12 @@ html = f'''<!DOCTYPE html>
 
   table    {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
   th       {{ text-align: left; padding: 9px 12px; color: #999; border-bottom: 1px solid #dde1e7;
-              font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }}
+              font-size: 11px; text-transform: uppercase; letter-spacing: .5px;
+              cursor: pointer; user-select: none; white-space: nowrap; }}
+  th:hover {{ color: #444; }}
+  th .sort-arrow {{ margin-left: 4px; opacity: 0.3; font-style: normal; }}
+  th.sort-asc  .sort-arrow,
+  th.sort-desc .sort-arrow {{ opacity: 1; color: #2980b9; }}
   td       {{ padding: 9px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }}
   tr:last-child td {{ border-bottom: none; }}
   .clickable {{ cursor: pointer; }}
@@ -286,8 +291,14 @@ html = f'''<!DOCTYPE html>
     <span class="pill medium">Medium: {sca.get("medium", 0)}</span>
     <span class="pill low">Low: {sca.get("low", 0)}</span>
   </div>
-  <table>
-    <thead><tr><th>Severity</th><th>CVE / ID</th><th>Title</th><th>Package</th><th>Fixed In</th></tr></thead>
+  <table id="sca-table">
+    <thead><tr>
+      <th onclick="sortTable('sca-table',0,this)">Severity<i class="sort-arrow">⇅</i></th>
+      <th onclick="sortTable('sca-table',1,this)">CVE / ID<i class="sort-arrow">⇅</i></th>
+      <th onclick="sortTable('sca-table',2,this)">Title<i class="sort-arrow">⇅</i></th>
+      <th onclick="sortTable('sca-table',3,this)">Package<i class="sort-arrow">⇅</i></th>
+      <th onclick="sortTable('sca-table',4,this)">Fixed In<i class="sort-arrow">⇅</i></th>
+    </tr></thead>
     <tbody>{sca_rows()}</tbody>
   </table>
 </div>
@@ -298,8 +309,14 @@ html = f'''<!DOCTYPE html>
     <span class="pill medium">Medium: {sast.get("medium", 0)}</span>
     <span class="pill low">Low: {sast.get("low", 0)}</span>
   </div>
-  <table>
-    <thead><tr><th>Severity</th><th>Rule ID</th><th>Title</th><th>Message</th><th>Location</th></tr></thead>
+  <table id="sast-table">
+    <thead><tr>
+      <th onclick="sortTable('sast-table',0,this)">Severity<i class="sort-arrow">⇅</i></th>
+      <th onclick="sortTable('sast-table',1,this)">Rule ID<i class="sort-arrow">⇅</i></th>
+      <th onclick="sortTable('sast-table',2,this)">Title<i class="sort-arrow">⇅</i></th>
+      <th onclick="sortTable('sast-table',3,this)">Message<i class="sort-arrow">⇅</i></th>
+      <th onclick="sortTable('sast-table',4,this)">Location<i class="sort-arrow">⇅</i></th>
+    </tr></thead>
     <tbody>{sast_rows()}</tbody>
   </table>
 </div>
@@ -370,6 +387,25 @@ function openSast(i) {{
     <div class="modal-section"><label>Issue</label><p>${{v.message}}</p></div>
     <div class="modal-section"><label>Remediation</label><div class="remediation"><p>${{v.remediation}}</p></div></div>`;
   openModal(v.title, meta, body);
+}}
+
+const SEV_ORDER = {{'critical':0,'high':1,'medium':2,'low':3}};
+function sortTable(tableId, col, th) {{
+  const table  = document.getElementById(tableId);
+  const tbody  = table.tBodies[0];
+  const rows   = Array.from(tbody.rows);
+  const allTh  = table.querySelectorAll('th');
+  const asc    = !th.classList.contains('sort-asc');
+  allTh.forEach(h => {{ h.classList.remove('sort-asc','sort-desc'); h.querySelector('.sort-arrow').textContent='⇅'; }});
+  th.classList.add(asc ? 'sort-asc' : 'sort-desc');
+  th.querySelector('.sort-arrow').textContent = asc ? '↑' : '↓';
+  rows.sort((a, b) => {{
+    let av = a.cells[col].textContent.trim().toLowerCase();
+    let bv = b.cells[col].textContent.trim().toLowerCase();
+    if (col === 0) {{ av = SEV_ORDER[av] ?? 9; bv = SEV_ORDER[bv] ?? 9; return asc ? av-bv : bv-av; }}
+    return asc ? av.localeCompare(bv) : bv.localeCompare(av);
+  }});
+  rows.forEach(r => tbody.appendChild(r));
 }}
 
 function closeModal(e) {{
