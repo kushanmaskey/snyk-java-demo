@@ -147,9 +147,10 @@ def sca_rows():
         return '<tr><td colspan="5" class="empty">&#10003; No vulnerabilities found</td></tr>'
     rows = []
     for i, v in enumerate(sca['vulns']):
+        cve_display = ', '.join(v["cves"]) if v["cves"] else v["id"]
         rows.append(f'''<tr class="clickable" onclick="openSca({i})" title="Click for details">
         <td>{badge(v["severity"])}</td>
-        <td class="mono small">{v["id"]}</td>
+        <td class="mono small">{cve_display}</td>
         <td>{v["title"]}</td>
         <td class="mono small">{v["package"]} {v["version"]}</td>
         <td class="small">{v["fixedIn"]}</td>
