@@ -8,6 +8,7 @@ JIRA_TOKEN  = os.environ.get('JIRA_API_TOKEN', '')
 PROJECT_KEY = 'KAN'
 SCA_JSON    = 'snyk-sca-report.json'
 SAST_JSON   = 'snyk-sast-report.json'
+IAC_JSON    = 'snyk-iac-report.json'
 
 PRIORITY_MAP = {'critical': 'Highest', 'high': 'High', 'medium': 'Medium', 'low': 'Low'}
 
@@ -171,6 +172,48 @@ def process_sast():
             ]
             create_ticket(summary, paras, sev, label)
 
+def process_iac():
+    print("\n--- IaC Misconfigurations ---")
+    try:
+        with open(IAC_JSON) as f:
+            data = json.load(f)
+        if not isinstance(data, list):
+            data = [data]
+    except Exception as e:
+        print(f"  Could not read {IAC_JSON}: {e}")
+        return
+
+    for file_result in data:
+        target = file_result.get('targetFile', '')
+        for issue in file_result.get('infrastructureAsCodeIssues', []):
+            if issue.get('isIgnored'):
+                continue
+            iid     = issue.get('id', '')
+            sev     = issue.get('severity', 'low').lower()
+            title   = issue.get('title', iid)
+            subtype = issue.get('subType', 'IaC')
+            path    = ' > '.join(str(p) for p in issue.get('path', []))
+            issue_t = issue.get('issue', issue.get('msg', ''))
+            impact  = issue.get('impact', '')
+            resolve = (issue.get('remediation', {}).get('terraform')
+                       or issue.get('resolve', ''))
+            docs    = issue.get('documentation', '')
+            summary = f"[SECURITY/IAC] {title} — {subtype} ({target})"
+            paras   = [
+                f"Rule: {iid}",
+                f"Severity: {sev.upper()}",
+                f"Resource: {path}",
+                f"File: {target}",
+                f"Issue: {issue_t}" if issue_t else '',
+                f"Impact: {impact}" if impact else '',
+                f"Remediation: {resolve}" if resolve else '',
+                f"Reference: {docs}" if docs else '',
+            ]
+            safe_id = iid.replace('/', '-').replace('.', '-')
+            safe_f  = target.replace('/', '-').replace('.', '-')
+            label   = f"snyk-iac-{safe_id}-{safe_f}"[:80]
+            create_ticket(summary, paras, sev, label)
+
 if not JIRA_TOKEN:
     print("ERROR: JIRA_API_TOKEN environment variable not set.")
     sys.exit(1)
@@ -178,4 +221,5 @@ if not JIRA_TOKEN:
 print("Creating JIRA tickets for Snyk findings...")
 process_sca()
 process_sast()
+process_iac()
 print("\nDone.")

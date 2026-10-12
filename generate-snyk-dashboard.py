@@ -4,6 +4,7 @@ from datetime import datetime
 
 SCA_JSON  = 'snyk-sca-report.json'
 SAST_JSON = 'snyk-sast-report.json'
+IAC_JSON  = 'snyk-iac-report.json'
 OUTPUT    = '/opt/homebrew/Cellar/tomcat/11.0.25/libexec/webapps/ROOT/csd.html'
 
 def parse_sca(path):
@@ -124,6 +125,44 @@ def parse_sast(path):
             })
     return {**counts, 'issues': items}
 
+def parse_iac(path):
+    try:
+        with open(path) as f:
+            data = json.load(f)
+        if not isinstance(data, list):
+            data = [data]
+    except Exception:
+        return {'critical': 0, 'high': 0, 'medium': 0, 'low': 0, 'issues': []}
+
+    counts = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0}
+    items  = []
+    for file_result in data:
+        target = file_result.get('targetFile', '')
+        for issue in file_result.get('infrastructureAsCodeIssues', []):
+            if issue.get('isIgnored'):
+                continue
+            sev = issue.get('severity', 'low').lower()
+            if sev in counts:
+                counts[sev] += 1
+            resource_path = ' > '.join(str(p) for p in issue.get('path', []))
+            remediation   = (issue.get('remediation', {}).get('terraform')
+                             or issue.get('resolve', '')
+                             or 'Review and apply the principle of least privilege to this resource.')
+            items.append({
+                'id':          issue.get('id', ''),
+                'title':       issue.get('title', 'Unknown'),
+                'severity':    sev,
+                'subType':     issue.get('subType', 'IaC'),
+                'issue':       issue.get('issue', issue.get('msg', '')),
+                'impact':      issue.get('impact', ''),
+                'remediation': remediation,
+                'resource':    resource_path,
+                'file':        target,
+                'line':        issue.get('lineNumber', ''),
+                'docs':        issue.get('documentation', ''),
+            })
+    return {**counts, 'issues': items}
+
 def badge(sev):
     colors = {'critical': '#c0392b', 'high': '#e74c3c', 'medium': '#e67e22', 'low': '#3498db'}
     return f'<span class="badge" style="background:{colors.get(sev,"#95a5a6")}">{sev.upper()}</span>'
@@ -133,13 +172,15 @@ def esc(s):
 
 sca  = parse_sca(SCA_JSON)
 sast = parse_sast(SAST_JSON)
+iac  = parse_iac(IAC_JSON)
 
 sca_total   = sca['critical'] + sca['high'] + sca['medium'] + sca['low']
 sast_total  = sast['high'] + sast['medium'] + sast['low']
-grand_total = sca_total + sast_total
-high_crit   = sca.get('critical', 0) + sca.get('high', 0) + sast.get('high', 0)
-medium      = sca.get('medium', 0) + sast.get('medium', 0)
-low         = sca.get('low', 0) + sast.get('low', 0)
+iac_total   = iac['critical'] + iac['high'] + iac['medium'] + iac['low']
+grand_total = sca_total + sast_total + iac_total
+high_crit   = sca.get('critical', 0) + sca.get('high', 0) + sast.get('high', 0) + iac.get('critical', 0) + iac.get('high', 0)
+medium      = sca.get('medium', 0) + sast.get('medium', 0) + iac.get('medium', 0)
+low         = sca.get('low', 0) + sast.get('low', 0) + iac.get('low', 0)
 now         = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
 def sca_rows():
@@ -171,8 +212,23 @@ def sast_rows():
     </tr>''')
     return ''.join(rows)
 
+def iac_rows():
+    if not iac['issues']:
+        return '<tr><td colspan="5" class="empty">&#10003; No IaC issues found</td></tr>'
+    rows = []
+    for i, issue in enumerate(iac['issues']):
+        rows.append(f'''<tr class="clickable" onclick="openIac({i})" title="Click for details">
+        <td>{badge(issue["severity"])}</td>
+        <td class="mono small">{issue["id"]}</td>
+        <td>{issue["title"]}</td>
+        <td class="small">{issue["subType"]}</td>
+        <td class="mono small">{issue["file"]}</td>
+    </tr>''')
+    return ''.join(rows)
+
 sca_json_str  = json.dumps(sca['vulns'],   ensure_ascii=False)
 sast_json_str = json.dumps(sast['issues'], ensure_ascii=False)
+iac_json_str  = json.dumps(iac['issues'],  ensure_ascii=False)
 
 html = f'''<!DOCTYPE html>
 <html lang="en">
@@ -195,6 +251,7 @@ html = f'''<!DOCTYPE html>
   .total .num {{ color: #222; }}
   .sca   .num {{ color: #e74c3c; }}
   .sast  .num {{ color: #e67e22; }}
+  .iac   .num {{ color: #8e44ad; }}
   .hc    .num {{ color: #e74c3c; }}
   .med   .num {{ color: #e67e22; }}
   .lw    .num {{ color: #3498db; }}
@@ -274,6 +331,7 @@ html = f'''<!DOCTYPE html>
   <div class="card total"><div class="num">{grand_total}</div><div class="lbl">Total Issues</div></div>
   <div class="card sca">  <div class="num">{sca_total}</div> <div class="lbl">SCA Issues</div></div>
   <div class="card sast"> <div class="num">{sast_total}</div><div class="lbl">SAST Issues</div></div>
+  <div class="card iac">  <div class="num">{iac_total}</div> <div class="lbl">IaC Issues</div></div>
   <div class="card hc">   <div class="num">{high_crit}</div> <div class="lbl">High / Critical</div></div>
   <div class="card med">  <div class="num">{medium}</div>    <div class="lbl">Medium</div></div>
   <div class="card lw">   <div class="num">{low}</div>       <div class="lbl">Low</div></div>
@@ -282,6 +340,7 @@ html = f'''<!DOCTYPE html>
 <div class="tabs">
   <button class="tab-btn active" onclick="showTab('sca', this)">SCA &mdash; Dependencies ({sca_total})</button>
   <button class="tab-btn"        onclick="showTab('sast', this)">SAST &mdash; Code Security ({sast_total})</button>
+  <button class="tab-btn"        onclick="showTab('iac', this)">IaC &mdash; Infrastructure ({iac_total})</button>
 </div>
 
 <div id="sca" class="tab-panel active">
@@ -321,6 +380,25 @@ html = f'''<!DOCTYPE html>
   </table>
 </div>
 
+<div id="iac" class="tab-panel">
+  <div class="pills">
+    <span class="pill critical">Critical: {iac.get("critical", 0)}</span>
+    <span class="pill high">High: {iac.get("high", 0)}</span>
+    <span class="pill medium">Medium: {iac.get("medium", 0)}</span>
+    <span class="pill low">Low: {iac.get("low", 0)}</span>
+  </div>
+  <table id="iac-table">
+    <thead><tr>
+      <th onclick="sortTable('iac-table',0,this)">Severity<i class="sort-arrow">⇅</i></th>
+      <th onclick="sortTable('iac-table',1,this)">Rule ID<i class="sort-arrow">⇅</i></th>
+      <th onclick="sortTable('iac-table',2,this)">Title<i class="sort-arrow">⇅</i></th>
+      <th onclick="sortTable('iac-table',3,this)">Resource<i class="sort-arrow">⇅</i></th>
+      <th onclick="sortTable('iac-table',4,this)">File<i class="sort-arrow">⇅</i></th>
+    </tr></thead>
+    <tbody>{iac_rows()}</tbody>
+  </table>
+</div>
+
 <!-- Modal -->
 <div class="overlay" id="overlay" onclick="closeModal(event)">
   <div class="modal" id="modal">
@@ -334,6 +412,7 @@ html = f'''<!DOCTYPE html>
 <script>
 const scaData  = {sca_json_str};
 const sastData = {sast_json_str};
+const iacData  = {iac_json_str};
 
 function showTab(id, btn) {{
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -389,6 +468,21 @@ function openSast(i) {{
   openModal(v.title, meta, body);
 }}
 
+function openIac(i) {{
+  const v = iacData[i];
+  const meta = `${{badgeHtml(v.severity)}} <span class="tag">${{v.subType}}</span>`;
+  const body = `
+    <div class="modal-section"><label>Rule</label><code class="mono">${{v.id}}</code></div>
+    <div class="modal-section"><label>Resource Path</label><code class="mono">${{v.resource}}</code></div>
+    <div class="modal-section"><label>File</label><code class="mono">${{v.file}}${{v.line ? `:${{v.line}}` : ''}}</code></div>
+    ${{v.issue ? `<div class="modal-section"><label>Issue</label><p>${{v.issue}}</p></div>` : ''}}
+    ${{v.impact ? `<div class="modal-section"><label>Impact</label><p>${{v.impact}}</p></div>` : ''}}
+    <div class="modal-section"><label>Remediation</label><div class="remediation"><p>${{v.remediation}}</p></div></div>
+    ${{v.docs ? `<div class="modal-section"><label>Reference</label><a class="ref-link" href="${{v.docs}}" target="_blank">${{v.docs}}</a></div>` : ''}}`;
+  openModal(v.title, meta, body);
+}}
+
+
 const SEV_ORDER = {{'critical':0,'high':1,'medium':2,'low':3}};
 function sortTable(tableId, col, th) {{
   const table  = document.getElementById(tableId);
@@ -425,3 +519,4 @@ with open(OUTPUT, 'w') as f:
 print(f"CSD written to {OUTPUT}")
 print(f"  SCA  — Critical:{sca.get('critical',0)} High:{sca.get('high',0)} Medium:{sca.get('medium',0)} Low:{sca.get('low',0)}")
 print(f"  SAST — High:{sast.get('high',0)} Medium:{sast.get('medium',0)} Low:{sast.get('low',0)}")
+print(f"  IaC  — Critical:{iac.get('critical',0)} High:{iac.get('high',0)} Medium:{iac.get('medium',0)} Low:{iac.get('low',0)}")
