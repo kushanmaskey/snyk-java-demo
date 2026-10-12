@@ -107,6 +107,14 @@ for c in root.findall('counter'):
             }
         }
 
+        stage('Snyk IaC - Terraform Scan') {
+            steps {
+                sh '''
+                    snyk iac test terraform/ --json > snyk-iac-report.json || true
+                '''
+            }
+        }
+
         stage('Security Dashboard') {
             steps {
                 sh 'python3 generate-snyk-dashboard.py'
