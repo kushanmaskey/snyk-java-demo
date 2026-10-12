@@ -42,7 +42,7 @@ def jira_post(path, body):
 
 def find_ticket(label):
     jql    = f'project = "{PROJECT_KEY}" AND labels = "{label}"'
-    result = jira_get(f'/search?jql={urllib.parse.quote(jql)}&maxResults=1')
+    result = jira_get(f'/search/jql?jql={urllib.parse.quote(jql)}&maxResults=1')
     if result and result.get('total', 0) > 0:
         return result['issues'][0]
     return None
