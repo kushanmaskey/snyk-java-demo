@@ -67,16 +67,17 @@ def adf(*paragraphs):
         ]
     }
 
-def create_ticket(summary, paragraphs, severity, label):
+def create_ticket(summary, paragraphs, severity, label, scan_type):
     existing = find_ticket(label)
     if existing:
         issue_key    = existing['key']
         current_lbls = existing['fields'].get('labels', [])
         sev_label    = f'severity-{severity}'
-        if sev_label not in current_lbls:
-            new_labels = list(set(current_lbls + ['snyk-security', sev_label, label]))
+        type_label   = f'type-{scan_type}'
+        new_labels   = list(set(current_lbls + ['snyk-security', sev_label, type_label, label]))
+        if set(new_labels) != set(current_lbls):
             jira_put(f'/issue/{issue_key}', {'fields': {'labels': new_labels}})
-            print(f"  UPDATED {issue_key}: added {sev_label}")
+            print(f"  UPDATED {issue_key}: labels synced")
         else:
             print(f"  SKIP (exists): {label}")
         return
@@ -87,7 +88,7 @@ def create_ticket(summary, paragraphs, severity, label):
             'description': adf(*paragraphs),
             'issuetype':   {'name': 'Task'},
             'priority':    {'name': PRIORITY_MAP.get(severity, 'Medium')},
-            'labels':      ['snyk-security', f'severity-{severity}', label],
+            'labels':      ['snyk-security', f'severity-{severity}', f'type-{scan_type}', label],
         }
     }
     result = jira_post('/issue', body)
@@ -130,7 +131,7 @@ def process_sca():
             f"Description: {desc}" if desc else '',
         ]
         label = f"snyk-{vid}"
-        create_ticket(summary, paras, sev, label)
+        create_ticket(summary, paras, sev, label, 'sca')
 
 def process_sast():
     print("\n--- SAST Code Issues ---")
@@ -170,7 +171,7 @@ def process_sast():
                 f"Issue: {msg}",
                 f"Guidance: {help_t}" if help_t else '',
             ]
-            create_ticket(summary, paras, sev, label)
+            create_ticket(summary, paras, sev, label, 'sast')
 
 def process_iac():
     print("\n--- IaC Misconfigurations ---")
@@ -212,7 +213,7 @@ def process_iac():
             safe_id = iid.replace('/', '-').replace('.', '-')
             safe_f  = target.replace('/', '-').replace('.', '-')
             label   = f"snyk-iac-{safe_id}-{safe_f}"[:80]
-            create_ticket(summary, paras, sev, label)
+            create_ticket(summary, paras, sev, label, 'iac')
 
 if not JIRA_TOKEN:
     print("ERROR: JIRA_API_TOKEN environment variable not set.")
