@@ -11,6 +11,7 @@ SAST_JSON   = 'snyk-sast-report.json'
 IAC_JSON    = 'snyk-iac-report.json'
 
 PRIORITY_MAP = {'critical': 'Highest', 'high': 'High', 'medium': 'Medium', 'low': 'Low'}
+SEV_ORDER    = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3}
 
 def headers():
     token = base64.b64encode(f"{JIRA_EMAIL}:{JIRA_TOKEN}".encode()).decode()
@@ -90,7 +91,9 @@ def process_sca():
         return
 
     seen = set()
-    for v in data.get('vulnerabilities', []):
+    vulns = sorted(data.get('vulnerabilities', []),
+                   key=lambda v: SEV_ORDER.get(v.get('severity', 'low').lower(), 3))
+    for v in vulns:
         vid = v.get('id', '')
         if not vid or vid in seen:
             continue
@@ -122,10 +125,15 @@ def process_sast():
         print(f"  Could not read {SAST_JSON}: {e}")
         return
 
-    sev_map = {'error': 'high', 'warning': 'medium', 'note': 'low'}
+    sev_map  = {'error': 'high', 'warning': 'medium', 'note': 'low'}
+    findings = []
     for run in data.get('runs', []):
         rules = {r['id']: r for r in run.get('tool', {}).get('driver', {}).get('rules', [])}
         for result in run.get('results', []):
+            findings.append((result, rules))
+    findings.sort(key=lambda x: SEV_ORDER.get(sev_map.get(x[0].get('level', 'warning'), 'medium'), 3))
+
+    for result, rules in findings:
             rule_id = result.get('ruleId', '')
             rule    = rules.get(rule_id, {})
             sev     = sev_map.get(result.get('level', 'warning'), 'medium')
@@ -162,11 +170,15 @@ def process_iac():
         print(f"  Could not read {IAC_JSON}: {e}")
         return
 
+    all_issues = []
     for file_result in data:
         target = file_result.get('targetFile', '')
         for issue in file_result.get('infrastructureAsCodeIssues', []):
-            if issue.get('isIgnored'):
-                continue
+            if not issue.get('isIgnored'):
+                all_issues.append((issue, target))
+    all_issues.sort(key=lambda x: SEV_ORDER.get(x[0].get('severity', 'low').lower(), 3))
+
+    for issue, target in all_issues:
             iid     = issue.get('id', '')
             sev     = issue.get('severity', 'low').lower()
             title   = issue.get('title', iid)
