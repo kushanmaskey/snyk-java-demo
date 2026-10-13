@@ -121,7 +121,8 @@ def process_sca():
         cves    = ', '.join(v.get('identifiers', {}).get('CVE', [])) or vid
         cvss    = v.get('cvssScore', 'N/A')
         desc    = v.get('description', '')[:400]
-        summary = f"[SECURITY/SCA] {v.get('title', vid)} — {pkg} {version}"
+        cve_id  = v.get('identifiers', {}).get('CVE', [vid])[0]
+        summary = f"[SECURITY/SCA] {v.get('title', vid)} ({cve_id}) — {pkg} {version}"
         paras   = [
             f"Snyk ID: {vid}",
             f"CVE: {cves}",
@@ -205,7 +206,7 @@ def process_iac():
             resolve = (issue.get('remediation', {}).get('terraform')
                        or issue.get('resolve', ''))
             docs    = issue.get('documentation', '')
-            summary = f"[SECURITY/IAC] {title} — {subtype} ({target})"
+            summary = f"[SECURITY/IAC] {title} ({iid}) — {subtype} ({target})"
             paras   = [
                 f"Rule: {iid}",
                 f"Severity: {sev.upper()}",
