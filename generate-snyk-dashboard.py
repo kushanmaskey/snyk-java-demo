@@ -482,6 +482,7 @@ function openIac(i) {{
   openModal(v.title, meta, body);
 }}
 
+
 const SEV_ORDER = {{'critical':0,'high':1,'medium':2,'low':3}};
 function sortTable(tableId, col, th) {{
   const table  = document.getElementById(tableId);
