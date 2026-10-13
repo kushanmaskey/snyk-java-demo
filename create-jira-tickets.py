@@ -42,13 +42,25 @@ def jira_post(path, body):
         print(f"  POST error {e.code}: {e.read().decode()[:200]}")
         return None
 
-def find_ticket(summary):
-    safe = summary[:255].replace('"', '\\"')
-    jql  = f'project = "{PROJECT_KEY}" AND summary = "{safe}"'
-    result = jira_get(f'/search/jql?jql={urllib.parse.quote(jql)}&maxResults=1')
-    if result and result.get('total', 0) > 0:
-        return result['issues'][0]
-    return None
+def fetch_existing_summaries():
+    jql       = f'project = "{PROJECT_KEY}" ORDER BY created ASC'
+    summaries = set()
+    start     = 0
+    while True:
+        path   = f'/search/jql?jql={urllib.parse.quote(jql)}&maxResults=100&startAt={start}&fields=summary'
+        result = jira_get(path)
+        if not result:
+            break
+        issues = result.get('issues', [])
+        if not issues:
+            break
+        for issue in issues:
+            summaries.add(issue['fields']['summary'].strip())
+        start += len(issues)
+        if start >= result.get('total', 0):
+            break
+    print(f"  Loaded {len(summaries)} existing ticket summaries.")
+    return summaries
 
 def adf(*paragraphs):
     return {
@@ -59,9 +71,11 @@ def adf(*paragraphs):
         ]
     }
 
+EXISTING = set()
+
 def create_ticket(summary, paragraphs, severity, scan_type):
-    existing = find_ticket(summary)
-    if existing:
+    key = summary[:255].strip()
+    if key in EXISTING:
         print(f"  SKIP (exists): {summary[:80]}")
         return
     body = {
@@ -76,6 +90,7 @@ def create_ticket(summary, paragraphs, severity, scan_type):
     }
     result = jira_post('/issue', body)
     if result and result.get('key'):
+        EXISTING.add(key)
         print(f"  CREATED {result['key']}: {summary[:80]}")
     else:
         print(f"  FAILED:  {summary[:80]}")
@@ -208,7 +223,9 @@ if not JIRA_TOKEN:
     sys.exit(1)
 
 print("Creating JIRA tickets for Snyk findings...")
+print("Loading existing tickets...")
+EXISTING.update(fetch_existing_summaries())
+process_iac()
 process_sca()
 process_sast()
-process_iac()
 print("\nDone.")
