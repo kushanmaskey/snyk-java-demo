@@ -70,7 +70,7 @@ def create_ticket(summary, paragraphs, severity, scan_type):
             'description': adf(*paragraphs),
             'issuetype':   {'name': 'Task'},
             'priority':    {'name': PRIORITY_MAP.get(severity, 'Medium')},
-            'labels':      [f'type-{scan_type}', f'severity-{severity}'],
+            'labels':      [f'type-{scan_type}'],
         }
     }
     result = jira_post('/issue', body)
