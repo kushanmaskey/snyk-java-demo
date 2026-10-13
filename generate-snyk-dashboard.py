@@ -338,12 +338,31 @@ html = f'''<!DOCTYPE html>
 </div>
 
 <div class="tabs">
-  <button class="tab-btn active" onclick="showTab('sca', this)">SCA &mdash; Dependencies ({sca_total})</button>
+  <button class="tab-btn active" onclick="showTab('iac', this)">IaC &mdash; Infrastructure ({iac_total})</button>
+  <button class="tab-btn"        onclick="showTab('sca', this)">SCA &mdash; Dependencies ({sca_total})</button>
   <button class="tab-btn"        onclick="showTab('sast', this)">SAST &mdash; Code Security ({sast_total})</button>
-  <button class="tab-btn"        onclick="showTab('iac', this)">IaC &mdash; Infrastructure ({iac_total})</button>
 </div>
 
-<div id="sca" class="tab-panel active">
+<div id="iac" class="tab-panel active">
+  <div class="pills">
+    <span class="pill critical">Critical: {iac.get("critical", 0)}</span>
+    <span class="pill high">High: {iac.get("high", 0)}</span>
+    <span class="pill medium">Medium: {iac.get("medium", 0)}</span>
+    <span class="pill low">Low: {iac.get("low", 0)}</span>
+  </div>
+  <table id="iac-table">
+    <thead><tr>
+      <th onclick="sortTable('iac-table',0,this)">Severity<i class="sort-arrow">⇅</i></th>
+      <th onclick="sortTable('iac-table',1,this)">Rule ID<i class="sort-arrow">⇅</i></th>
+      <th onclick="sortTable('iac-table',2,this)">Title<i class="sort-arrow">⇅</i></th>
+      <th onclick="sortTable('iac-table',3,this)">Resource<i class="sort-arrow">⇅</i></th>
+      <th onclick="sortTable('iac-table',4,this)">File<i class="sort-arrow">⇅</i></th>
+    </tr></thead>
+    <tbody>{iac_rows()}</tbody>
+  </table>
+</div>
+
+<div id="sca" class="tab-panel">
   <div class="pills">
     <span class="pill critical">Critical: {sca.get("critical", 0)}</span>
     <span class="pill high">High: {sca.get("high", 0)}</span>
@@ -377,25 +396,6 @@ html = f'''<!DOCTYPE html>
       <th onclick="sortTable('sast-table',4,this)">Location<i class="sort-arrow">⇅</i></th>
     </tr></thead>
     <tbody>{sast_rows()}</tbody>
-  </table>
-</div>
-
-<div id="iac" class="tab-panel">
-  <div class="pills">
-    <span class="pill critical">Critical: {iac.get("critical", 0)}</span>
-    <span class="pill high">High: {iac.get("high", 0)}</span>
-    <span class="pill medium">Medium: {iac.get("medium", 0)}</span>
-    <span class="pill low">Low: {iac.get("low", 0)}</span>
-  </div>
-  <table id="iac-table">
-    <thead><tr>
-      <th onclick="sortTable('iac-table',0,this)">Severity<i class="sort-arrow">⇅</i></th>
-      <th onclick="sortTable('iac-table',1,this)">Rule ID<i class="sort-arrow">⇅</i></th>
-      <th onclick="sortTable('iac-table',2,this)">Title<i class="sort-arrow">⇅</i></th>
-      <th onclick="sortTable('iac-table',3,this)">Resource<i class="sort-arrow">⇅</i></th>
-      <th onclick="sortTable('iac-table',4,this)">File<i class="sort-arrow">⇅</i></th>
-    </tr></thead>
-    <tbody>{iac_rows()}</tbody>
   </table>
 </div>
 

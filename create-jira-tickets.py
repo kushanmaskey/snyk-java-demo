@@ -12,6 +12,7 @@ IAC_JSON    = 'snyk-iac-report.json'
 
 PRIORITY_MAP = {'critical': 'Highest', 'high': 'High', 'medium': 'Medium', 'low': 'Low'}
 SEV_ORDER    = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3}
+TYPE_LABEL   = {'iac': 'type-1-iac', 'sca': 'type-2-sca', 'sast': 'type-3-sast'}
 
 def headers():
     token = base64.b64encode(f"{JIRA_EMAIL}:{JIRA_TOKEN}".encode()).decode()
@@ -70,7 +71,7 @@ def create_ticket(summary, paragraphs, severity, scan_type):
             'description': adf(*paragraphs),
             'issuetype':   {'name': 'Task'},
             'priority':    {'name': PRIORITY_MAP.get(severity, 'Medium')},
-            'labels':      [f'type-{scan_type}'],
+            'labels':      [TYPE_LABEL[scan_type]],
         }
     }
     result = jira_post('/issue', body)
