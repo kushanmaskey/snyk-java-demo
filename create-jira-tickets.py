@@ -206,7 +206,7 @@ def process_iac():
             resolve = (issue.get('remediation', {}).get('terraform')
                        or issue.get('resolve', ''))
             docs    = issue.get('documentation', '')
-            summary = f"[SECURITY/IAC] {title} ({iid}) — {subtype} ({target})"
+            summary = f"[SECURITY/IAC] {title} ({iid}) — {path} ({target})"
             paras   = [
                 f"Rule: {iid}",
                 f"Severity: {sev.upper()}",
