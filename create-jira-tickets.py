@@ -40,23 +40,13 @@ def jira_post(path, body):
         print(f"  POST error {e.code}: {e.read().decode()[:200]}")
         return None
 
-def find_ticket(label):
-    jql    = f'project = "{PROJECT_KEY}" AND labels = "{label}"'
+def find_ticket(summary):
+    safe = summary[:255].replace('"', '\\"')
+    jql  = f'project = "{PROJECT_KEY}" AND summary = "{safe}"'
     result = jira_get(f'/search/jql?jql={urllib.parse.quote(jql)}&maxResults=1')
     if result and result.get('total', 0) > 0:
         return result['issues'][0]
     return None
-
-def jira_put(path, body):
-    data = json.dumps(body).encode()
-    req  = urllib.request.Request(f"{JIRA_SITE}/rest/api/3{path}",
-                                  data=data, headers=headers(), method='PUT')
-    try:
-        with urllib.request.urlopen(req) as r:
-            return True
-    except urllib.error.HTTPError as e:
-        print(f"  PUT error {e.code}: {e.read().decode()[:200]}")
-        return False
 
 def adf(*paragraphs):
     return {
@@ -67,19 +57,10 @@ def adf(*paragraphs):
         ]
     }
 
-def create_ticket(summary, paragraphs, severity, label, scan_type):
-    existing = find_ticket(label)
+def create_ticket(summary, paragraphs, severity, scan_type):
+    existing = find_ticket(summary)
     if existing:
-        issue_key    = existing['key']
-        current_lbls = existing['fields'].get('labels', [])
-        sev_label    = f'severity-{severity}'
-        type_label   = f'type-{scan_type}'
-        new_labels   = list(set(current_lbls + ['snyk-security', sev_label, type_label, label]))
-        if set(new_labels) != set(current_lbls):
-            jira_put(f'/issue/{issue_key}', {'fields': {'labels': new_labels}})
-            print(f"  UPDATED {issue_key}: labels synced")
-        else:
-            print(f"  SKIP (exists): {label}")
+        print(f"  SKIP (exists): {summary[:80]}")
         return
     body = {
         'fields': {
@@ -88,7 +69,7 @@ def create_ticket(summary, paragraphs, severity, label, scan_type):
             'description': adf(*paragraphs),
             'issuetype':   {'name': 'Task'},
             'priority':    {'name': PRIORITY_MAP.get(severity, 'Medium')},
-            'labels':      ['snyk-security', f'severity-{severity}', f'type-{scan_type}', label],
+            'labels':      [f'type-{scan_type}', f'severity-{severity}'],
         }
     }
     result = jira_post('/issue', body)
@@ -130,8 +111,7 @@ def process_sca():
             f"Remediation: Upgrade to {fixed}",
             f"Description: {desc}" if desc else '',
         ]
-        label = f"snyk-{vid}"
-        create_ticket(summary, paras, sev, label, 'sca')
+        create_ticket(summary, paras, sev, 'sca')
 
 def process_sast():
     print("\n--- SAST Code Issues ---")
@@ -160,8 +140,6 @@ def process_sast():
             title   = rule.get('shortDescription', {}).get('text', rule_id)
             help_t  = rule.get('help', {}).get('text', '')[:300]
             cwes    = ', '.join(f"CWE-{c}" for c in rule.get('properties', {}).get('cwe', []))
-            safe_loc = loc.replace('/', '-').replace(':', '-').replace('.', '-')
-            label   = f"snyk-{rule_id}-{safe_loc}"[:80]
             summary = f"[SECURITY/SAST] {title} — {loc}"
             paras   = [
                 f"Rule: {rule_id}",
@@ -171,7 +149,7 @@ def process_sast():
                 f"Issue: {msg}",
                 f"Guidance: {help_t}" if help_t else '',
             ]
-            create_ticket(summary, paras, sev, label, 'sast')
+            create_ticket(summary, paras, sev, 'sast')
 
 def process_iac():
     print("\n--- IaC Misconfigurations ---")
@@ -210,10 +188,7 @@ def process_iac():
                 f"Remediation: {resolve}" if resolve else '',
                 f"Reference: {docs}" if docs else '',
             ]
-            safe_id = iid.replace('/', '-').replace('.', '-')
-            safe_f  = target.replace('/', '-').replace('.', '-')
-            label   = f"snyk-iac-{safe_id}-{safe_f}"[:80]
-            create_ticket(summary, paras, sev, label, 'iac')
+            create_ticket(summary, paras, sev, 'iac')
 
 if not JIRA_TOKEN:
     print("ERROR: JIRA_API_TOKEN environment variable not set.")
