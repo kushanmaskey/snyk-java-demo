@@ -27,7 +27,7 @@ public class VulnerableHttpServer {
     static void send(HttpExchange ex, int code, String contentType, String body) throws IOException {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         ex.getResponseHeaders().set("Content-Type", contentType);
-        // Server version disclosure — ZAP Plugin 10036
+        ex.getResponseHeaders().set("Content-Security-Policy", "default-src 'self'");
         ex.getResponseHeaders().set("Server", "Apache/2.4.50");
         ex.sendResponseHeaders(code, bytes.length);
         try (OutputStream os = ex.getResponseBody()) {
