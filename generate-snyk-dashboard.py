@@ -307,7 +307,8 @@ html = f'''<!DOCTYPE html>
   .dast  .num {{ color: #16a085; }}
   .sca   .num {{ color: #e74c3c; }}
   .sast  .num {{ color: #e67e22; }}
-  .iac   .num {{ color: #8e44ad; }}
+  .iac     .num {{ color: #8e44ad; }}
+  .secrets .num {{ color: #95a5a6; }}
   .hc    .num {{ color: #e74c3c; }}
   .med   .num {{ color: #e67e22; }}
   .lw    .num {{ color: #3498db; }}
@@ -374,6 +375,13 @@ html = f'''<!DOCTYPE html>
   .remediation {{ background: #eafaf1; border-left: 4px solid #27ae60; border-radius: 6px;
                   padding: 12px 16px; margin-top: 4px; }}
   .remediation p {{ color: #1e8449; font-size: 13px; line-height: 1.6; }}
+  .placeholder-box {{ background: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 10px;
+                      padding: 40px; text-align: center; color: #6c757d; margin-top: 8px; }}
+  .placeholder-box h3 {{ font-size: 18px; margin-bottom: 10px; color: #495057; }}
+  .placeholder-box p  {{ font-size: 13px; line-height: 1.8; max-width: 560px; margin: 0 auto 16px; }}
+  .placeholder-box .tool-list {{ display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 16px; }}
+  .placeholder-box .tool-tag  {{ background: #e9ecef; border-radius: 20px; padding: 4px 14px;
+                                 font-size: 12px; font-weight: 600; color: #495057; }}
 </style>
 </head>
 <body>
@@ -388,7 +396,8 @@ html = f'''<!DOCTYPE html>
   <div class="card dast"> <div class="num">{dast_total}</div><div class="lbl">DAST Issues</div></div>
   <div class="card iac">  <div class="num">{iac_total}</div> <div class="lbl">IaC Issues</div></div>
   <div class="card sca">  <div class="num">{sca_total}</div> <div class="lbl">SCA Issues</div></div>
-  <div class="card sast"> <div class="num">{sast_total}</div><div class="lbl">SAST Issues</div></div>
+  <div class="card sast">    <div class="num">{sast_total}</div><div class="lbl">SAST Issues</div></div>
+  <div class="card secrets"><div class="num">—</div><div class="lbl">Secrets</div></div>
   <div class="card hc">   <div class="num">{high_crit}</div> <div class="lbl">High / Critical</div></div>
   <div class="card med">  <div class="num">{medium}</div>    <div class="lbl">Medium</div></div>
   <div class="card lw">   <div class="num">{low}</div>       <div class="lbl">Low</div></div>
@@ -399,6 +408,7 @@ html = f'''<!DOCTYPE html>
   <button class="tab-btn"        onclick="showTab('iac', this)">IaC &mdash; Infrastructure ({iac_total})</button>
   <button class="tab-btn"        onclick="showTab('sca', this)">SCA &mdash; Dependencies ({sca_total})</button>
   <button class="tab-btn"        onclick="showTab('sast', this)">SAST &mdash; Code Security ({sast_total})</button>
+  <button class="tab-btn"        onclick="showTab('secrets', this)">Secrets &mdash; Not Configured</button>
 </div>
 
 <div id="dast" class="tab-panel active">
@@ -473,6 +483,33 @@ html = f'''<!DOCTYPE html>
     </tr></thead>
     <tbody>{sast_rows()}</tbody>
   </table>
+</div>
+
+<div id="secrets" class="tab-panel">
+  <div class="placeholder-box">
+    <h3>Secret Scanning — Not Yet Configured</h3>
+    <p>
+      Secret scanning detects hardcoded credentials, API keys, tokens, and passwords
+      accidentally committed to source code. A single leaked secret can give an attacker
+      full access to cloud infrastructure, databases, or third-party services.
+    </p>
+    <p>
+      <strong>What it finds:</strong> AWS keys &nbsp;&middot;&nbsp; GitHub tokens &nbsp;&middot;&nbsp;
+      Database passwords &nbsp;&middot;&nbsp; Private keys &nbsp;&middot;&nbsp;
+      OAuth secrets &nbsp;&middot;&nbsp; JWT signing keys
+    </p>
+    <p>
+      <strong>To enable:</strong> A Snyk Enterprise licence is required for Snyk's secret scanning.
+      Alternatively the following open-source tools can be integrated into the pipeline at no cost.
+    </p>
+    <div class="tool-list">
+      <span class="tool-tag">Snyk (Enterprise)</span>
+      <span class="tool-tag">TruffleHog</span>
+      <span class="tool-tag">GitLeaks</span>
+      <span class="tool-tag">detect-secrets</span>
+      <span class="tool-tag">GitHub Secret Scanning</span>
+    </div>
+  </div>
 </div>
 
 <!-- Modal -->
