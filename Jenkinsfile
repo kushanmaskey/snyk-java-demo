@@ -14,7 +14,7 @@ pipeline {
         SNYK_HOME             = '/opt/homebrew/bin'
         SONAR_API_TOKEN       = credentials('sonar-jenkins')
         JIRA_API_TOKEN        = credentials('jira-api-token')
-        PATH                  = "/opt/homebrew/bin:/opt/homebrew/opt/openjdk@11/bin:${env.PATH}"
+        PATH                  = "/usr/local/bin:/opt/homebrew/bin:/opt/homebrew/opt/openjdk@11/bin:${env.PATH}"
         MIN_COVERAGE_PERCENT  = '20'
     }
 
