@@ -115,6 +115,32 @@ for c in root.findall('counter'):
             }
         }
 
+        stage('DAST - ZAP Scan') {
+            steps {
+                sh '''
+                    lsof -ti:8082 | xargs kill -9 2>/dev/null || true
+                    java -cp target/classes com.example.VulnerableHttpServer &
+                    SERVER_PID=$!
+                    echo "Vulnerable server started (PID $SERVER_PID)"
+                    for i in $(seq 1 30); do
+                        if curl -sf http://localhost:8082/health > /dev/null 2>&1; then
+                            echo "Server ready after ${i}s"; break
+                        fi
+                        sleep 1
+                    done
+                    docker run --rm \
+                        -v "$(pwd):/zap/wrk/:rw" \
+                        zaproxy/zap-stable \
+                        zap-baseline.py \
+                        -t http://host.docker.internal:8082 \
+                        -J zap-dast-report.json \
+                        -I || true
+                    kill $SERVER_PID 2>/dev/null || true
+                    lsof -ti:8082 | xargs kill -9 2>/dev/null || true
+                '''
+            }
+        }
+
         stage('Security Dashboard') {
             steps {
                 sh 'python3 generate-snyk-dashboard.py'

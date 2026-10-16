@@ -5,6 +5,7 @@ from datetime import datetime
 SCA_JSON  = 'snyk-sca-report.json'
 SAST_JSON = 'snyk-sast-report.json'
 IAC_JSON  = 'snyk-iac-report.json'
+DAST_JSON = 'zap-dast-report.json'
 OUTPUT    = '/opt/homebrew/Cellar/tomcat/11.0.25/libexec/webapps/ROOT/csd.html'
 
 def parse_sca(path):
@@ -163,6 +164,41 @@ def parse_iac(path):
             })
     return {**counts, 'issues': items}
 
+def parse_dast(path):
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except Exception:
+        return {'high': 0, 'medium': 0, 'low': 0, 'issues': []}
+
+    risk_map = {'3': 'high', '2': 'medium', '1': 'low'}
+    counts   = {'high': 0, 'medium': 0, 'low': 0}
+    items    = []
+    for site in data.get('site', []):
+        for alert in site.get('alerts', []):
+            risk = str(alert.get('riskcode', '0'))
+            sev  = risk_map.get(risk)
+            if not sev:
+                continue
+            counts[sev] += 1
+            instances = alert.get('instances', [])
+            urls = list({inst.get('uri', '') for inst in instances[:5] if inst.get('uri')})
+            items.append({
+                'pluginid':  alert.get('pluginid', ''),
+                'name':      alert.get('name', alert.get('alert', 'Unknown')),
+                'severity':  sev,
+                'desc':      alert.get('desc', '')[:500],
+                'solution':  alert.get('solution', '')[:400],
+                'url':       urls[0] if urls else '',
+                'urls':      urls,
+                'count':     alert.get('count', '0'),
+                'cweid':     alert.get('cweid', ''),
+                'wascid':    alert.get('wascid', ''),
+                'reference': alert.get('reference', '')[:300],
+            })
+    items.sort(key=lambda x: {'high': 0, 'medium': 1, 'low': 2}.get(x['severity'], 3))
+    return {**counts, 'issues': items}
+
 def badge(sev):
     colors = {'critical': '#c0392b', 'high': '#e74c3c', 'medium': '#e67e22', 'low': '#3498db'}
     return f'<span class="badge" style="background:{colors.get(sev,"#95a5a6")}">{sev.upper()}</span>'
@@ -173,15 +209,33 @@ def esc(s):
 sca  = parse_sca(SCA_JSON)
 sast = parse_sast(SAST_JSON)
 iac  = parse_iac(IAC_JSON)
+dast = parse_dast(DAST_JSON)
 
 sca_total   = sca['critical'] + sca['high'] + sca['medium'] + sca['low']
 sast_total  = sast['high'] + sast['medium'] + sast['low']
 iac_total   = iac['critical'] + iac['high'] + iac['medium'] + iac['low']
-grand_total = sca_total + sast_total + iac_total
-high_crit   = sca.get('critical', 0) + sca.get('high', 0) + sast.get('high', 0) + iac.get('critical', 0) + iac.get('high', 0)
-medium      = sca.get('medium', 0) + sast.get('medium', 0) + iac.get('medium', 0)
-low         = sca.get('low', 0) + sast.get('low', 0) + iac.get('low', 0)
+dast_total  = dast['high'] + dast['medium'] + dast['low']
+grand_total = sca_total + sast_total + iac_total + dast_total
+high_crit   = (sca.get('critical', 0) + sca.get('high', 0) + sast.get('high', 0)
+               + iac.get('critical', 0) + iac.get('high', 0) + dast.get('high', 0))
+medium      = sca.get('medium', 0) + sast.get('medium', 0) + iac.get('medium', 0) + dast.get('medium', 0)
+low         = sca.get('low', 0) + sast.get('low', 0) + iac.get('low', 0) + dast.get('low', 0)
 now         = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+def dast_rows():
+    if not dast['issues']:
+        return '<tr><td colspan="5" class="empty">&#10003; No DAST findings</td></tr>'
+    rows = []
+    for i, issue in enumerate(dast['issues']):
+        cwe_display = f"CWE-{issue['cweid']}" if issue['cweid'] else '—'
+        rows.append(f'''<tr class="clickable" onclick="openDast({i})" title="Click for details">
+        <td>{badge(issue["severity"])}</td>
+        <td class="mono small">{issue["pluginid"]}</td>
+        <td>{issue["name"]}</td>
+        <td class="mono small">{cwe_display}</td>
+        <td class="small">{issue["url"][:80]}</td>
+    </tr>''')
+    return ''.join(rows)
 
 def sca_rows():
     if not sca['vulns']:
@@ -229,6 +283,7 @@ def iac_rows():
 sca_json_str  = json.dumps(sca['vulns'],   ensure_ascii=False)
 sast_json_str = json.dumps(sast['issues'], ensure_ascii=False)
 iac_json_str  = json.dumps(iac['issues'],  ensure_ascii=False)
+dast_json_str = json.dumps(dast['issues'], ensure_ascii=False)
 
 html = f'''<!DOCTYPE html>
 <html lang="en">
@@ -249,6 +304,7 @@ html = f'''<!DOCTYPE html>
   .card .num {{ font-size: 38px; font-weight: 700; line-height: 1; }}
   .card .lbl {{ font-size: 11px; color: #999; margin-top: 6px; text-transform: uppercase; letter-spacing: .5px; }}
   .total .num {{ color: #222; }}
+  .dast  .num {{ color: #16a085; }}
   .sca   .num {{ color: #e74c3c; }}
   .sast  .num {{ color: #e67e22; }}
   .iac   .num {{ color: #8e44ad; }}
@@ -329,21 +385,41 @@ html = f'''<!DOCTYPE html>
 
 <div class="cards">
   <div class="card total"><div class="num">{grand_total}</div><div class="lbl">Total Issues</div></div>
+  <div class="card dast"> <div class="num">{dast_total}</div><div class="lbl">DAST Issues</div></div>
+  <div class="card iac">  <div class="num">{iac_total}</div> <div class="lbl">IaC Issues</div></div>
   <div class="card sca">  <div class="num">{sca_total}</div> <div class="lbl">SCA Issues</div></div>
   <div class="card sast"> <div class="num">{sast_total}</div><div class="lbl">SAST Issues</div></div>
-  <div class="card iac">  <div class="num">{iac_total}</div> <div class="lbl">IaC Issues</div></div>
   <div class="card hc">   <div class="num">{high_crit}</div> <div class="lbl">High / Critical</div></div>
   <div class="card med">  <div class="num">{medium}</div>    <div class="lbl">Medium</div></div>
   <div class="card lw">   <div class="num">{low}</div>       <div class="lbl">Low</div></div>
 </div>
 
 <div class="tabs">
-  <button class="tab-btn active" onclick="showTab('iac', this)">IaC &mdash; Infrastructure ({iac_total})</button>
+  <button class="tab-btn active" onclick="showTab('dast', this)">DAST &mdash; Runtime ({dast_total})</button>
+  <button class="tab-btn"        onclick="showTab('iac', this)">IaC &mdash; Infrastructure ({iac_total})</button>
   <button class="tab-btn"        onclick="showTab('sca', this)">SCA &mdash; Dependencies ({sca_total})</button>
   <button class="tab-btn"        onclick="showTab('sast', this)">SAST &mdash; Code Security ({sast_total})</button>
 </div>
 
-<div id="iac" class="tab-panel active">
+<div id="dast" class="tab-panel active">
+  <div class="pills">
+    <span class="pill high">High: {dast.get("high", 0)}</span>
+    <span class="pill medium">Medium: {dast.get("medium", 0)}</span>
+    <span class="pill low">Low: {dast.get("low", 0)}</span>
+  </div>
+  <table id="dast-table">
+    <thead><tr>
+      <th onclick="sortTable('dast-table',0,this)">Severity<i class="sort-arrow">⇅</i></th>
+      <th onclick="sortTable('dast-table',1,this)">Plugin ID<i class="sort-arrow">⇅</i></th>
+      <th onclick="sortTable('dast-table',2,this)">Alert<i class="sort-arrow">⇅</i></th>
+      <th onclick="sortTable('dast-table',3,this)">CWE<i class="sort-arrow">⇅</i></th>
+      <th onclick="sortTable('dast-table',4,this)">URL<i class="sort-arrow">⇅</i></th>
+    </tr></thead>
+    <tbody>{dast_rows()}</tbody>
+  </table>
+</div>
+
+<div id="iac" class="tab-panel">
   <div class="pills">
     <span class="pill critical">Critical: {iac.get("critical", 0)}</span>
     <span class="pill high">High: {iac.get("high", 0)}</span>
@@ -413,6 +489,7 @@ html = f'''<!DOCTYPE html>
 const scaData  = {sca_json_str};
 const sastData = {sast_json_str};
 const iacData  = {iac_json_str};
+const dastData = {dast_json_str};
 
 function showTab(id, btn) {{
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -434,6 +511,20 @@ function openModal(title, metaHtml, bodyHtml) {{
   document.getElementById('m-meta').innerHTML  = metaHtml;
   document.getElementById('m-body').innerHTML  = bodyHtml;
   document.getElementById('overlay').classList.add('open');
+}}
+
+function openDast(i) {{
+  const v = dastData[i];
+  const cweTag = v.cweid ? `<span class="tag">CWE-${{v.cweid}}</span>` : '';
+  const wascTag = v.wascid ? `<span class="tag">WASC-${{v.wascid}}</span>` : '';
+  const meta = `${{badgeHtml(v.severity)}} ${{cweTag}} ${{wascTag}}`;
+  const urlList = v.urls.map(u => `<span class="mono" style="display:block;font-size:12px;margin:2px 0">${{u}}</span>`).join('');
+  const body = `
+    ${{v.url ? `<div class="modal-section"><label>Affected URL(s)</label>${{urlList || `<code class="mono">${{v.url}}</code>`}}</div>` : ''}}
+    ${{v.desc ? `<div class="modal-section"><label>Description</label><p>${{v.desc}}</p></div>` : ''}}
+    ${{v.solution ? `<div class="modal-section"><label>Solution</label><div class="remediation"><p>${{v.solution}}</p></div></div>` : ''}}
+    ${{v.reference ? `<div class="modal-section"><label>References</label><p class="small">${{v.reference}}</p></div>` : ''}}`;
+  openModal(v.name, meta, body);
 }}
 
 function openSca(i) {{
@@ -517,6 +608,7 @@ with open(OUTPUT, 'w') as f:
     f.write(html)
 
 print(f"CSD written to {OUTPUT}")
+print(f"  DAST — High:{dast.get('high',0)} Medium:{dast.get('medium',0)} Low:{dast.get('low',0)}")
+print(f"  IaC  — Critical:{iac.get('critical',0)} High:{iac.get('high',0)} Medium:{iac.get('medium',0)} Low:{iac.get('low',0)}")
 print(f"  SCA  — Critical:{sca.get('critical',0)} High:{sca.get('high',0)} Medium:{sca.get('medium',0)} Low:{sca.get('low',0)}")
 print(f"  SAST — High:{sast.get('high',0)} Medium:{sast.get('medium',0)} Low:{sast.get('low',0)}")
-print(f"  IaC  — Critical:{iac.get('critical',0)} High:{iac.get('high',0)} Medium:{iac.get('medium',0)} Low:{iac.get('low',0)}")

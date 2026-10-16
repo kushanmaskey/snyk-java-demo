@@ -9,10 +9,11 @@ PROJECT_KEY = 'KAN'
 SCA_JSON    = 'snyk-sca-report.json'
 SAST_JSON   = 'snyk-sast-report.json'
 IAC_JSON    = 'snyk-iac-report.json'
+DAST_JSON   = 'zap-dast-report.json'
 
 PRIORITY_MAP = {'critical': 'Highest', 'high': 'High', 'medium': 'Medium', 'low': 'Low'}
 SEV_ORDER    = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3}
-TYPE_LABEL   = {'iac': 'type-1-iac', 'sca': 'type-2-sca', 'sast': 'type-3-sast'}
+TYPE_LABEL   = {'dast': 'type-0-dast', 'iac': 'type-1-iac', 'sca': 'type-2-sca', 'sast': 'type-3-sast'}
 
 def headers():
     token = base64.b64encode(f"{JIRA_EMAIL}:{JIRA_TOKEN}".encode()).decode()
@@ -176,6 +177,47 @@ def process_sast():
             ]
             create_ticket(summary, paras, sev, 'sast')
 
+def process_dast():
+    print("\n--- DAST Vulnerabilities ---")
+    try:
+        with open(DAST_JSON) as f:
+            data = json.load(f)
+    except Exception as e:
+        print(f"  Could not read {DAST_JSON}: {e}")
+        return
+
+    risk_map   = {'3': 'high', '2': 'medium', '1': 'low'}
+    all_alerts = []
+    for site in data.get('site', []):
+        for alert in site.get('alerts', []):
+            risk = str(alert.get('riskcode', '0'))
+            if risk in risk_map:
+                all_alerts.append(alert)
+    all_alerts.sort(key=lambda a: int(a.get('riskcode', '0')), reverse=True)
+
+    for alert in all_alerts:
+        risk      = str(alert.get('riskcode', '0'))
+        sev       = risk_map.get(risk, 'medium')
+        name      = alert.get('name', alert.get('alert', 'Unknown'))
+        plugin_id = alert.get('pluginid', '')
+        cwe       = alert.get('cweid', '')
+        wasc      = alert.get('wascid', '')
+        desc      = alert.get('desc', '')[:400]
+        solution  = alert.get('solution', '')[:400]
+        instances = alert.get('instances', [])
+        urls      = ', '.join(list({inst.get('uri', '') for inst in instances[:3] if inst.get('uri')}))
+        summary   = f"[SECURITY/DAST] {name} (ZAP-{plugin_id})"
+        paras     = [
+            f"Plugin ID: {plugin_id}",
+            f"Severity: {sev.upper()}",
+            f"CWE: CWE-{cwe}" if cwe else '',
+            f"WASC: {wasc}" if wasc else '',
+            f"Affected URLs: {urls}" if urls else '',
+            f"Description: {desc}" if desc else '',
+            f"Solution: {solution}" if solution else '',
+        ]
+        create_ticket(summary, paras, sev, 'dast')
+
 def process_iac():
     print("\n--- IaC Misconfigurations ---")
     try:
@@ -226,6 +268,7 @@ if not JIRA_TOKEN:
 print("Creating JIRA tickets for Snyk findings...")
 print("Loading existing tickets...")
 EXISTING.update(fetch_existing_summaries())
+process_dast()
 process_iac()
 process_sca()
 process_sast()
