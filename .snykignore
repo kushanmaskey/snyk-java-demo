@@ -1,0 +1,7 @@
+# Exclude CI/CD pipeline utility scripts from SAST scanning.
+# These are not application code — they are build tooling that generate
+# HTML dashboards and create JIRA tickets. The Java application source
+# in src/ is still fully scanned.
+generate-snyk-dashboard.py
+create-jira-tickets.py
+cleanup-jira-tickets.py
