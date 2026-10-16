@@ -15,6 +15,7 @@ pipeline {
         SONAR_API_TOKEN       = credentials('sonar-jenkins')
         JIRA_API_TOKEN        = credentials('jira-api-token')
         PATH                  = "/usr/local/bin:/opt/homebrew/bin:/opt/homebrew/opt/openjdk@11/bin:${env.PATH}"
+        SSL_CERT_FILE         = '/etc/ssl/cert.pem'
         MIN_COVERAGE_PERCENT  = '20'
     }
 
