@@ -102,8 +102,8 @@ for c in root.findall('counter'):
         stage('Snyk SAST - Code Scan') {
             steps {
                 sh '''
-                    snyk code test --json --exclude=generate-snyk-dashboard.py,create-jira-tickets.py,cleanup-jira-tickets.py > snyk-sast-report.json || true
-                    snyk code test --severity-threshold=high --exclude=generate-snyk-dashboard.py,create-jira-tickets.py,cleanup-jira-tickets.py
+                    snyk code test --json > snyk-sast-report.json || true
+                    snyk code test --severity-threshold=high
                 '''
             }
         }

@@ -370,8 +370,8 @@ else:
     secrets_tab_html = '''<div class="placeholder-box">
     <h3>Secret Scanning — Not Yet Configured</h3>
     <p>
-      Secret scanning detects hardcoded credentials, API keys, tokens, and passwords
-      accidentally committed to source code. A single leaked secret can give an attacker
+      Secret scanning detects credentials, API keys, tokens, and passwords
+      accidentally committed to source code. A single exposed secret can give an attacker
       full access to cloud infrastructure, databases, or third-party services.
     </p>
     <p>
