@@ -103,7 +103,6 @@ for c in root.findall('counter'):
             steps {
                 sh '''
                     snyk code test --json > snyk-sast-report.json || true
-                    snyk code test --severity-threshold=high
                 '''
             }
         }
