@@ -63,18 +63,23 @@ def fetch_existing_summaries():
     print(f"  Loaded {len(summaries)} existing ticket summaries.")
     return summaries
 
-def adf(*paragraphs):
-    return {
-        'type': 'doc', 'version': 1,
-        'content': [
-            {'type': 'paragraph', 'content': [{'type': 'text', 'text': str(p)}]}
-            for p in paragraphs if p and str(p).strip()
-        ]
-    }
+def para(text):
+    return {'type': 'paragraph', 'content': [{'type': 'text', 'text': str(text)}]}
+
+def heading(text, level=3):
+    return {'type': 'heading', 'attrs': {'level': level}, 'content': [{'type': 'text', 'text': str(text)}]}
+
+def panel(text, panel_type='success'):
+    return {'type': 'panel', 'attrs': {'panelType': panel_type},
+            'content': [para(text)]}
+
+def build_adf(*nodes):
+    return {'type': 'doc', 'version': 1,
+            'content': [n for n in nodes if n]}
 
 EXISTING = set()
 
-def create_ticket(summary, paragraphs, severity, scan_type):
+def create_ticket(summary, adf_doc, severity, scan_type):
     key = summary[:255].strip()
     if key in EXISTING:
         print(f"  SKIP (exists): {summary[:80]}")
@@ -83,7 +88,7 @@ def create_ticket(summary, paragraphs, severity, scan_type):
         'fields': {
             'project':     {'key': PROJECT_KEY},
             'summary':     summary[:255],
-            'description': adf(*paragraphs),
+            'description': adf_doc,
             'issuetype':   {'name': 'Task'},
             'priority':    {'name': PRIORITY_MAP.get(severity, 'Medium')},
             'labels':      [TYPE_LABEL[scan_type]],
@@ -123,16 +128,21 @@ def process_sca():
         cvss    = v.get('cvssScore', 'N/A')
         desc    = v.get('description', '')[:400]
         cve_id  = v.get('identifiers', {}).get('CVE', [vid])[0]
-        summary = f"[SECURITY/SCA] {v.get('title', vid)} ({cve_id}) — {pkg} {version}"
-        paras   = [
-            f"Snyk ID: {vid}",
-            f"CVE: {cves}",
-            f"Severity: {sev.upper()}  |  CVSS Score: {cvss}",
-            f"Affected Package: {pkg} {version}",
-            f"Remediation: Upgrade to {fixed}",
-            f"Description: {desc}" if desc else '',
-        ]
-        create_ticket(summary, paras, sev, 'sca')
+        summary  = f"[SECURITY/SCA] {v.get('title', vid)} ({cve_id}) — {pkg} {version}"
+        fix_note = (f"Upgrade {pkg} from version {version} to {fixed}. "
+                    f"Update your pom.xml dependency version and rebuild."
+                    if fixed != 'No fix available'
+                    else 'No fix is currently available. Monitor the package for future releases and consider an alternative library.')
+        adf_doc  = build_adf(
+            heading('Overview'),
+            para(f"Snyk ID: {vid}  |  CVE: {cves}  |  Severity: {sev.upper()}  |  CVSS: {cvss}"),
+            para(f"Affected Package: {pkg} {version}"),
+            heading('Description') if desc else None,
+            para(desc) if desc else None,
+            heading('How to Fix'),
+            panel(fix_note),
+        )
+        create_ticket(summary, adf_doc, sev, 'sca')
 
 def process_sast():
     print("\n--- SAST Code Issues ---")
@@ -167,15 +177,18 @@ def process_sast():
             help_t  = rule.get('help', {}).get('text', '')[:300]
             cwes    = ', '.join(f"CWE-{c}" for c in rule.get('properties', {}).get('cwe', []))
             summary = f"[SECURITY/SAST] {title} — {loc}"
-            paras   = [
-                f"Rule: {rule_id}",
-                f"Severity: {sev.upper()}",
-                f"CWE: {cwes}" if cwes else '',
-                f"Location: {loc}",
-                f"Issue: {msg}",
-                f"Guidance: {help_t}" if help_t else '',
-            ]
-            create_ticket(summary, paras, sev, 'sast')
+            fix_note = help_t or 'Review the flagged code, sanitize all external inputs, and apply the principle of least privilege.'
+            adf_doc = build_adf(
+                heading('Overview'),
+                para(f"Rule: {rule_id}  |  Severity: {sev.upper()}" + (f"  |  CWE: {cwes}" if cwes else '')),
+                heading('Location'),
+                para(loc),
+                heading('Issue'),
+                para(msg),
+                heading('How to Fix'),
+                panel(fix_note),
+            )
+            create_ticket(summary, adf_doc, sev, 'sast')
 
 def process_dast():
     print("\n--- DAST Vulnerabilities ---")
@@ -206,17 +219,21 @@ def process_dast():
         solution  = alert.get('solution', '')[:400]
         instances = alert.get('instances', [])
         urls      = ', '.join(list({inst.get('uri', '') for inst in instances[:3] if inst.get('uri')}))
-        summary   = f"[SECURITY/DAST] {name} (ZAP-{plugin_id})"
-        paras     = [
-            f"Plugin ID: {plugin_id}",
-            f"Severity: {sev.upper()}",
-            f"CWE: CWE-{cwe}" if cwe else '',
-            f"WASC: {wasc}" if wasc else '',
-            f"Affected URLs: {urls}" if urls else '',
-            f"Description: {desc}" if desc else '',
-            f"Solution: {solution}" if solution else '',
-        ]
-        create_ticket(summary, paras, sev, 'dast')
+        summary  = f"[SECURITY/DAST] {name} (ZAP-{plugin_id})"
+        fix_note = solution or 'Review the ZAP documentation for this plugin ID and apply the recommended security controls.'
+        adf_doc  = build_adf(
+            heading('Overview'),
+            para(f"Plugin ID: {plugin_id}  |  Severity: {sev.upper()}"
+                 + (f"  |  CWE: CWE-{cwe}" if cwe else '')
+                 + (f"  |  WASC: {wasc}" if wasc else '')),
+            heading('Affected URLs') if urls else None,
+            para(urls) if urls else None,
+            heading('Description') if desc else None,
+            para(desc) if desc else None,
+            heading('How to Fix'),
+            panel(fix_note),
+        )
+        create_ticket(summary, adf_doc, sev, 'dast')
 
 def process_iac():
     print("\n--- IaC Misconfigurations ---")
@@ -248,18 +265,22 @@ def process_iac():
             resolve = (issue.get('remediation', {}).get('terraform')
                        or issue.get('resolve', ''))
             docs    = issue.get('documentation', '')
-            summary = f"[SECURITY/IAC] {title} ({iid}) — {path} ({target})"
-            paras   = [
-                f"Rule: {iid}",
-                f"Severity: {sev.upper()}",
-                f"Resource: {path}",
-                f"File: {target}",
-                f"Issue: {issue_t}" if issue_t else '',
-                f"Impact: {impact}" if impact else '',
-                f"Remediation: {resolve}" if resolve else '',
-                f"Reference: {docs}" if docs else '',
-            ]
-            create_ticket(summary, paras, sev, 'iac')
+            summary  = f"[SECURITY/IAC] {title} ({iid}) — {path} ({target})"
+            fix_note = resolve or 'Review this resource configuration and apply the principle of least privilege.'
+            if docs:
+                fix_note += f"\n\nReference: {docs}"
+            adf_doc  = build_adf(
+                heading('Overview'),
+                para(f"Rule: {iid}  |  Severity: {sev.upper()}  |  Resource Type: {subtype}"),
+                para(f"File: {target}  |  Resource: {path}"),
+                heading('Issue') if issue_t else None,
+                para(issue_t) if issue_t else None,
+                heading('Impact') if impact else None,
+                para(impact) if impact else None,
+                heading('How to Fix'),
+                panel(fix_note),
+            )
+            create_ticket(summary, adf_doc, sev, 'iac')
 
 if not JIRA_TOKEN:
     print("ERROR: JIRA_API_TOKEN environment variable not set.")
