@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
-import json, os, sys, base64
+import json, os, sys, base64, re
 import urllib.request, urllib.parse, urllib.error
+
+def strip_html(text):
+    return re.sub(r'<[^>]+>', ' ', str(text)).strip()
 
 JIRA_SITE   = 'https://snyk-java-demo.atlassian.net'
 JIRA_EMAIL  = 'kushan.maskey@gmail.com'
@@ -126,7 +129,7 @@ def process_sca():
         fixed   = ', '.join(v.get('fixedIn', [])) or 'No fix available'
         cves    = ', '.join(v.get('identifiers', {}).get('CVE', [])) or vid
         cvss    = v.get('cvssScore', 'N/A')
-        desc    = v.get('description', '')[:400]
+        desc    = strip_html(v.get('description', ''))[:400]
         cve_id  = v.get('identifiers', {}).get('CVE', [vid])[0]
         summary  = f"[SECURITY/SCA] {v.get('title', vid)} ({cve_id}) — {pkg} {version}"
         fix_note = (f"Upgrade {pkg} from version {version} to {fixed}. "
@@ -215,8 +218,8 @@ def process_dast():
         plugin_id = alert.get('pluginid', '')
         cwe       = alert.get('cweid', '')
         wasc      = alert.get('wascid', '')
-        desc      = alert.get('desc', '')[:400]
-        solution  = alert.get('solution', '')[:400]
+        desc      = strip_html(alert.get('desc', ''))[:400]
+        solution  = strip_html(alert.get('solution', ''))[:400]
         instances = alert.get('instances', [])
         urls      = ', '.join(list({inst.get('uri', '') for inst in instances[:3] if inst.get('uri')}))
         summary  = f"[SECURITY/DAST] {name} (ZAP-{plugin_id})"
