@@ -12,11 +12,12 @@ PROJECT_KEY = 'KAN'
 SCA_JSON    = 'snyk-sca-report.json'
 SAST_JSON   = 'snyk-sast-report.json'
 IAC_JSON    = 'snyk-iac-report.json'
-DAST_JSON   = 'zap-dast-report.json'
+DAST_JSON    = 'zap-dast-report.json'
+SECRETS_JSON = 'trufflehog-report.json'
 
 PRIORITY_MAP = {'critical': 'Highest', 'high': 'High', 'medium': 'Medium', 'low': 'Low'}
 SEV_ORDER    = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3}
-TYPE_LABEL   = {'dast': 'type-0-dast', 'iac': 'type-1-iac', 'sca': 'type-2-sca', 'sast': 'type-3-sast'}
+TYPE_LABEL   = {'dast': 'type-0-dast', 'iac': 'type-1-iac', 'sca': 'type-2-sca', 'sast': 'type-3-sast', 'secrets': 'type-4-secrets'}
 
 def headers():
     token = base64.b64encode(f"{JIRA_EMAIL}:{JIRA_TOKEN}".encode()).decode()
@@ -285,6 +286,58 @@ def process_iac():
             )
             create_ticket(summary, adf_doc, sev, 'iac')
 
+def process_secrets():
+    print("\n--- Secret Scanning Findings ---")
+    try:
+        with open(SECRETS_JSON) as f:
+            lines = [l.strip() for l in f if l.strip()]
+    except Exception as e:
+        print(f"  Could not read {SECRETS_JSON}: {e}")
+        return
+
+    findings = []
+    for line in lines:
+        try:
+            findings.append(json.loads(line))
+        except Exception:
+            continue
+
+    findings.sort(key=lambda x: 0 if x.get('Verified') else 1)
+
+    seen = set()
+    for finding in findings:
+        detector = finding.get('DetectorName', 'Unknown')
+        verified = finding.get('Verified', False)
+        sev      = 'high' if verified else 'medium'
+        raw      = finding.get('Raw', '')
+        redacted = raw[:4] + '****' if len(raw) > 4 else '****'
+        meta     = finding.get('SourceMetadata', {}).get('Data', {})
+        loc_data = (meta.get('Filesystem') or meta.get('Git') or meta.get('Github') or {})
+        file_path = loc_data.get('file', loc_data.get('filename', 'unknown'))
+        line_num  = loc_data.get('line', '')
+        loc       = f"{file_path}:{line_num}" if line_num else file_path
+        dedup_key = f"{detector}:{loc}"
+        if dedup_key in seen:
+            continue
+        seen.add(dedup_key)
+        status   = 'VERIFIED' if verified else 'UNVERIFIED'
+        summary  = f"[SECURITY/SECRETS] {detector} Secret Found — {file_path}"
+        fix_note = (f"Immediately revoke and rotate the {detector} credential. "
+                    f"Remove the secret from source code and use environment variables or a secrets manager (e.g. HashiCorp Vault, AWS Secrets Manager). "
+                    f"Audit git history and rotate any credentials that were ever committed.")
+        adf_doc  = build_adf(
+            heading('Overview'),
+            para(f"Detector: {detector}  |  Status: {status}  |  Severity: {sev.upper()}"),
+            heading('Location'),
+            para(loc),
+            heading('Exposed Credential'),
+            para(f"Partial value: {redacted}"),
+            heading('How to Fix'),
+            panel(fix_note),
+        )
+        create_ticket(summary, adf_doc, sev, 'secrets')
+
+
 if not JIRA_TOKEN:
     print("ERROR: JIRA_API_TOKEN environment variable not set.")
     sys.exit(1)
@@ -296,4 +349,5 @@ process_dast()
 process_iac()
 process_sca()
 process_sast()
+process_secrets()
 print("\nDone.")

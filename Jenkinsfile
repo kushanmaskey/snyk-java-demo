@@ -116,6 +116,18 @@ for c in root.findall('counter'):
             }
         }
 
+        stage('Secret Scanning - TruffleHog') {
+            steps {
+                sh '''
+                    docker run --rm \
+                        -v "$(pwd):/proj" \
+                        trufflesecurity/trufflehog:latest \
+                        filesystem /proj \
+                        --json > trufflehog-report.json 2>/dev/null || true
+                '''
+            }
+        }
+
         stage('DAST - ZAP Scan') {
             steps {
                 sh '''

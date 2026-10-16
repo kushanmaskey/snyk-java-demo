@@ -2,11 +2,12 @@
 import json
 from datetime import datetime
 
-SCA_JSON  = 'snyk-sca-report.json'
-SAST_JSON = 'snyk-sast-report.json'
-IAC_JSON  = 'snyk-iac-report.json'
-DAST_JSON = 'zap-dast-report.json'
-OUTPUT    = '/opt/homebrew/Cellar/tomcat/11.0.25/libexec/webapps/ROOT/csd.html'
+SCA_JSON     = 'snyk-sca-report.json'
+SAST_JSON    = 'snyk-sast-report.json'
+IAC_JSON     = 'snyk-iac-report.json'
+DAST_JSON    = 'zap-dast-report.json'
+SECRETS_JSON = 'trufflehog-report.json'
+OUTPUT       = '/opt/homebrew/Cellar/tomcat/11.0.25/libexec/webapps/ROOT/csd.html'
 
 def parse_sca(path):
     try:
@@ -199,6 +200,50 @@ def parse_dast(path):
     items.sort(key=lambda x: {'high': 0, 'medium': 1, 'low': 2}.get(x['severity'], 3))
     return {**counts, 'issues': items}
 
+def parse_secrets(path):
+    try:
+        with open(path) as f:
+            lines = [l.strip() for l in f if l.strip()]
+    except Exception:
+        return {'high': 0, 'medium': 0, 'configured': False, 'findings': []}
+
+    counts = {'high': 0, 'medium': 0}
+    items  = []
+    seen   = set()
+    for line in lines:
+        try:
+            finding = json.loads(line)
+        except Exception:
+            continue
+        detector = finding.get('DetectorName', 'Unknown')
+        verified = finding.get('Verified', False)
+        sev      = 'high' if verified else 'medium'
+        meta     = finding.get('SourceMetadata', {}).get('Data', {})
+        loc_data = (meta.get('Filesystem') or meta.get('Git') or meta.get('Github') or {})
+        file_path = loc_data.get('file', loc_data.get('filename', 'unknown'))
+        line_num  = loc_data.get('line', '')
+        loc       = f"{file_path}:{line_num}" if line_num else file_path
+        dedup_key = f"{detector}:{loc}"
+        if dedup_key in seen:
+            continue
+        seen.add(dedup_key)
+        counts[sev] += 1
+        raw      = finding.get('Raw', '')
+        redacted = raw[:4] + '****' if len(raw) > 4 else '****'
+        items.append({
+            'detector':  detector,
+            'severity':  sev,
+            'verified':  verified,
+            'file':      file_path,
+            'line':      line_num,
+            'location':  loc,
+            'redacted':  redacted,
+            'decoder':   finding.get('DecoderName', ''),
+        })
+    items.sort(key=lambda x: 0 if x['severity'] == 'high' else 1)
+    return {**counts, 'configured': True, 'findings': items}
+
+
 def badge(sev):
     colors = {'critical': '#c0392b', 'high': '#e74c3c', 'medium': '#e67e22', 'low': '#3498db'}
     return f'<span class="badge" style="background:{colors.get(sev,"#95a5a6")}">{sev.upper()}</span>'
@@ -206,21 +251,25 @@ def badge(sev):
 def esc(s):
     return str(s).replace('\\', '\\\\').replace('`', '\\`').replace('$', '\\$')
 
-sca  = parse_sca(SCA_JSON)
-sast = parse_sast(SAST_JSON)
-iac  = parse_iac(IAC_JSON)
-dast = parse_dast(DAST_JSON)
+sca     = parse_sca(SCA_JSON)
+sast    = parse_sast(SAST_JSON)
+iac     = parse_iac(IAC_JSON)
+dast    = parse_dast(DAST_JSON)
+secrets = parse_secrets(SECRETS_JSON)
 
-sca_total   = sca['critical'] + sca['high'] + sca['medium'] + sca['low']
-sast_total  = sast['high'] + sast['medium'] + sast['low']
-iac_total   = iac['critical'] + iac['high'] + iac['medium'] + iac['low']
-dast_total  = dast['high'] + dast['medium'] + dast['low']
-grand_total = sca_total + sast_total + iac_total + dast_total
-high_crit   = (sca.get('critical', 0) + sca.get('high', 0) + sast.get('high', 0)
-               + iac.get('critical', 0) + iac.get('high', 0) + dast.get('high', 0))
-medium      = sca.get('medium', 0) + sast.get('medium', 0) + iac.get('medium', 0) + dast.get('medium', 0)
-low         = sca.get('low', 0) + sast.get('low', 0) + iac.get('low', 0) + dast.get('low', 0)
-now         = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+sca_total     = sca['critical'] + sca['high'] + sca['medium'] + sca['low']
+sast_total    = sast['high'] + sast['medium'] + sast['low']
+iac_total     = iac['critical'] + iac['high'] + iac['medium'] + iac['low']
+dast_total    = dast['high'] + dast['medium'] + dast['low']
+secrets_total = secrets['high'] + secrets['medium']
+grand_total   = sca_total + sast_total + iac_total + dast_total + secrets_total
+high_crit     = (sca.get('critical', 0) + sca.get('high', 0) + sast.get('high', 0)
+                 + iac.get('critical', 0) + iac.get('high', 0) + dast.get('high', 0)
+                 + secrets.get('high', 0))
+medium        = (sca.get('medium', 0) + sast.get('medium', 0) + iac.get('medium', 0)
+                 + dast.get('medium', 0) + secrets.get('medium', 0))
+low           = sca.get('low', 0) + sast.get('low', 0) + iac.get('low', 0) + dast.get('low', 0)
+now           = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
 def dast_rows():
     if not dast['issues']:
@@ -280,10 +329,68 @@ def iac_rows():
     </tr>''')
     return ''.join(rows)
 
-sca_json_str  = json.dumps(sca['vulns'],   ensure_ascii=False)
-sast_json_str = json.dumps(sast['issues'], ensure_ascii=False)
-iac_json_str  = json.dumps(iac['issues'],  ensure_ascii=False)
-dast_json_str = json.dumps(dast['issues'], ensure_ascii=False)
+def secrets_rows():
+    if not secrets['findings']:
+        return '<tr><td colspan="5" class="empty">&#10003; No secrets found</td></tr>'
+    rows = []
+    for i, s in enumerate(secrets['findings']):
+        verified_tag = '<span class="tag" style="background:#fdecea;color:#c0392b">VERIFIED</span>' if s['verified'] else '<span class="tag">UNVERIFIED</span>'
+        rows.append(f'''<tr class="clickable" onclick="openSecrets({i})" title="Click for details">
+        <td>{badge(s["severity"])}</td>
+        <td>{s["detector"]}</td>
+        <td>{verified_tag}</td>
+        <td class="mono small">{s["file"]}</td>
+        <td class="mono small">{s["redacted"]}</td>
+    </tr>''')
+    return ''.join(rows)
+
+
+sca_json_str     = json.dumps(sca['vulns'],      ensure_ascii=False)
+sast_json_str    = json.dumps(sast['issues'],    ensure_ascii=False)
+iac_json_str     = json.dumps(iac['issues'],     ensure_ascii=False)
+dast_json_str    = json.dumps(dast['issues'],    ensure_ascii=False)
+secrets_json_str = json.dumps(secrets['findings'], ensure_ascii=False)
+
+if secrets['configured']:
+    secrets_tab_html = f'''<div class="pills">
+    <span class="pill high">High (Verified): {secrets.get("high", 0)}</span>
+    <span class="pill medium">Medium (Unverified): {secrets.get("medium", 0)}</span>
+  </div>
+  <table id="secrets-table">
+    <thead><tr>
+      <th onclick="sortTable('secrets-table',0,this)">Severity<i class="sort-arrow">⇅</i></th>
+      <th onclick="sortTable('secrets-table',1,this)">Detector<i class="sort-arrow">⇅</i></th>
+      <th onclick="sortTable('secrets-table',2,this)">Status<i class="sort-arrow">⇅</i></th>
+      <th onclick="sortTable('secrets-table',3,this)">File<i class="sort-arrow">⇅</i></th>
+      <th onclick="sortTable('secrets-table',4,this)">Redacted Value<i class="sort-arrow">⇅</i></th>
+    </tr></thead>
+    <tbody>{secrets_rows()}</tbody>
+  </table>'''
+else:
+    secrets_tab_html = '''<div class="placeholder-box">
+    <h3>Secret Scanning — Not Yet Configured</h3>
+    <p>
+      Secret scanning detects hardcoded credentials, API keys, tokens, and passwords
+      accidentally committed to source code. A single leaked secret can give an attacker
+      full access to cloud infrastructure, databases, or third-party services.
+    </p>
+    <p>
+      <strong>What it finds:</strong> AWS keys &nbsp;&middot;&nbsp; GitHub tokens &nbsp;&middot;&nbsp;
+      Database passwords &nbsp;&middot;&nbsp; Private keys &nbsp;&middot;&nbsp;
+      OAuth secrets &nbsp;&middot;&nbsp; JWT signing keys
+    </p>
+    <p>
+      <strong>To enable:</strong> A Snyk Enterprise licence is required for Snyk&#x27;s secret scanning.
+      Alternatively the following open-source tools can be integrated into the pipeline at no cost.
+    </p>
+    <div class="tool-list">
+      <span class="tool-tag">Snyk (Enterprise)</span>
+      <span class="tool-tag">TruffleHog</span>
+      <span class="tool-tag">GitLeaks</span>
+      <span class="tool-tag">detect-secrets</span>
+      <span class="tool-tag">GitHub Secret Scanning</span>
+    </div>
+  </div>'''
 
 html = f'''<!DOCTYPE html>
 <html lang="en">
@@ -397,7 +504,7 @@ html = f'''<!DOCTYPE html>
   <div class="card iac">  <div class="num">{iac_total}</div> <div class="lbl">IaC Issues</div></div>
   <div class="card sca">  <div class="num">{sca_total}</div> <div class="lbl">SCA Issues</div></div>
   <div class="card sast">    <div class="num">{sast_total}</div><div class="lbl">SAST Issues</div></div>
-  <div class="card secrets"><div class="num">—</div><div class="lbl">Secrets</div></div>
+  <div class="card secrets"><div class="num">{'—' if not secrets['configured'] else secrets_total}</div><div class="lbl">Secrets</div></div>
   <div class="card hc">   <div class="num">{high_crit}</div> <div class="lbl">High / Critical</div></div>
   <div class="card med">  <div class="num">{medium}</div>    <div class="lbl">Medium</div></div>
   <div class="card lw">   <div class="num">{low}</div>       <div class="lbl">Low</div></div>
@@ -408,7 +515,7 @@ html = f'''<!DOCTYPE html>
   <button class="tab-btn"        onclick="showTab('iac', this)">IaC &mdash; Infrastructure ({iac_total})</button>
   <button class="tab-btn"        onclick="showTab('sca', this)">SCA &mdash; Dependencies ({sca_total})</button>
   <button class="tab-btn"        onclick="showTab('sast', this)">SAST &mdash; Code Security ({sast_total})</button>
-  <button class="tab-btn"        onclick="showTab('secrets', this)">Secrets &mdash; Not Configured</button>
+  <button class="tab-btn"        onclick="showTab('secrets', this)">Secrets ({secrets_total if secrets['configured'] else '—'})</button>
 </div>
 
 <div id="dast" class="tab-panel active">
@@ -486,30 +593,7 @@ html = f'''<!DOCTYPE html>
 </div>
 
 <div id="secrets" class="tab-panel">
-  <div class="placeholder-box">
-    <h3>Secret Scanning — Not Yet Configured</h3>
-    <p>
-      Secret scanning detects hardcoded credentials, API keys, tokens, and passwords
-      accidentally committed to source code. A single leaked secret can give an attacker
-      full access to cloud infrastructure, databases, or third-party services.
-    </p>
-    <p>
-      <strong>What it finds:</strong> AWS keys &nbsp;&middot;&nbsp; GitHub tokens &nbsp;&middot;&nbsp;
-      Database passwords &nbsp;&middot;&nbsp; Private keys &nbsp;&middot;&nbsp;
-      OAuth secrets &nbsp;&middot;&nbsp; JWT signing keys
-    </p>
-    <p>
-      <strong>To enable:</strong> A Snyk Enterprise licence is required for Snyk's secret scanning.
-      Alternatively the following open-source tools can be integrated into the pipeline at no cost.
-    </p>
-    <div class="tool-list">
-      <span class="tool-tag">Snyk (Enterprise)</span>
-      <span class="tool-tag">TruffleHog</span>
-      <span class="tool-tag">GitLeaks</span>
-      <span class="tool-tag">detect-secrets</span>
-      <span class="tool-tag">GitHub Secret Scanning</span>
-    </div>
-  </div>
+  {secrets_tab_html}
 </div>
 
 <!-- Modal -->
@@ -523,10 +607,11 @@ html = f'''<!DOCTYPE html>
 </div>
 
 <script>
-const scaData  = {sca_json_str};
-const sastData = {sast_json_str};
-const iacData  = {iac_json_str};
-const dastData = {dast_json_str};
+const scaData     = {sca_json_str};
+const sastData    = {sast_json_str};
+const iacData     = {iac_json_str};
+const dastData    = {dast_json_str};
+const secretsData = {secrets_json_str};
 
 function showTab(id, btn) {{
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -611,6 +696,24 @@ function openIac(i) {{
 }}
 
 
+function openSecrets(i) {{
+  const v = secretsData[i];
+  const statusTag = v.verified
+    ? `<span class="tag" style="background:#fdecea;color:#c0392b">VERIFIED</span>`
+    : `<span class="tag">UNVERIFIED</span>`;
+  const meta = `${{badgeHtml(v.severity)}} ${{statusTag}}`;
+  const body = `
+    <div class="modal-section"><label>Detector</label><code class="mono">${{v.detector}}</code></div>
+    <div class="modal-section"><label>Location</label><code class="mono">${{v.location}}</code></div>
+    <div class="modal-section"><label>Exposed Credential (redacted)</label><code class="mono">${{v.redacted}}</code></div>
+    <div class="modal-section"><label>Remediation</label><div class="remediation"><p>
+      Immediately <strong>revoke and rotate</strong> this ${{v.detector}} credential.
+      Remove it from source code and use environment variables or a secrets manager (e.g. HashiCorp Vault, AWS Secrets Manager).
+      Audit git history — rotating the credential in the latest commit is not enough if it was previously pushed.
+    </p></div></div>`;
+  openModal(`${{v.detector}} Secret Found`, meta, body);
+}}
+
 const SEV_ORDER = {{'critical':0,'high':1,'medium':2,'low':3}};
 function sortTable(tableId, col, th) {{
   const table  = document.getElementById(tableId);
@@ -645,7 +748,8 @@ with open(OUTPUT, 'w') as f:
     f.write(html)
 
 print(f"CSD written to {OUTPUT}")
-print(f"  DAST — High:{dast.get('high',0)} Medium:{dast.get('medium',0)} Low:{dast.get('low',0)}")
-print(f"  IaC  — Critical:{iac.get('critical',0)} High:{iac.get('high',0)} Medium:{iac.get('medium',0)} Low:{iac.get('low',0)}")
-print(f"  SCA  — Critical:{sca.get('critical',0)} High:{sca.get('high',0)} Medium:{sca.get('medium',0)} Low:{sca.get('low',0)}")
-print(f"  SAST — High:{sast.get('high',0)} Medium:{sast.get('medium',0)} Low:{sast.get('low',0)}")
+print(f"  DAST    — High:{dast.get('high',0)} Medium:{dast.get('medium',0)} Low:{dast.get('low',0)}")
+print(f"  IaC     — Critical:{iac.get('critical',0)} High:{iac.get('high',0)} Medium:{iac.get('medium',0)} Low:{iac.get('low',0)}")
+print(f"  SCA     — Critical:{sca.get('critical',0)} High:{sca.get('high',0)} Medium:{sca.get('medium',0)} Low:{sca.get('low',0)}")
+print(f"  SAST    — High:{sast.get('high',0)} Medium:{sast.get('medium',0)} Low:{sast.get('low',0)}")
+print(f"  Secrets — High:{secrets.get('high',0)} Medium:{secrets.get('medium',0)} (TruffleHog{'configured' if secrets['configured'] else 'not configured'})")
