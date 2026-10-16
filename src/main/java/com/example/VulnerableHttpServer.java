@@ -55,9 +55,8 @@ public class VulnerableHttpServer {
 
     static class HomeHandler implements HttpHandler {
         public void handle(HttpExchange ex) throws IOException {
-            // Insecure cookies: no HttpOnly, no Secure — ZAP Plugin 10010 and 10011
-            ex.getResponseHeaders().add("Set-Cookie", "session=abc123; Path=/"; HttpOnly);
-            ex.getResponseHeaders().add("Set-Cookie", "user=admin; Path=/"; HttpOnly);
+            ex.getResponseHeaders().add("Set-Cookie", "session=abc123; Path=/; HttpOnly");
+            ex.getResponseHeaders().add("Set-Cookie", "user=admin; Path=/; HttpOnly");
             String html = "<html><body><h1>Demo App</h1><ul>" +
                 "<li><a href='/search?q=hello'>Search</a></li>" +
                 "<li><a href='/user?name=admin'>User Lookup</a></li>" +
