@@ -122,6 +122,7 @@ for c in root.findall('counter'):
                         -v "$(pwd):/proj" \
                         trufflesecurity/trufflehog:latest \
                         filesystem /proj \
+                        --exclude-globs="**/.git/**" \
                         --json > trufflehog-report.json 2>/dev/null || true
                 '''
             }
