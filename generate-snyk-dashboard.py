@@ -367,30 +367,7 @@ if secrets['configured']:
     <tbody>{secrets_rows()}</tbody>
   </table>'''
 else:
-    secrets_tab_html = '''<div class="placeholder-box">
-    <h3>Secret Scanning — Not Yet Configured</h3>
-    <p>
-      Secret scanning detects credentials, API keys, tokens, and passwords
-      accidentally committed to source code. A single exposed secret can give an attacker
-      full access to cloud infrastructure, databases, or third-party services.
-    </p>
-    <p>
-      <strong>What it finds:</strong> AWS keys &nbsp;&middot;&nbsp; GitHub tokens &nbsp;&middot;&nbsp;
-      Database passwords &nbsp;&middot;&nbsp; Private keys &nbsp;&middot;&nbsp;
-      OAuth secrets &nbsp;&middot;&nbsp; JWT signing keys
-    </p>
-    <p>
-      <strong>To enable:</strong> A Snyk Enterprise licence is required for Snyk&#x27;s secret scanning.
-      Alternatively the following open-source tools can be integrated into the pipeline at no cost.
-    </p>
-    <div class="tool-list">
-      <span class="tool-tag">Snyk (Enterprise)</span>
-      <span class="tool-tag">TruffleHog</span>
-      <span class="tool-tag">GitLeaks</span>
-      <span class="tool-tag">detect-secrets</span>
-      <span class="tool-tag">GitHub Secret Scanning</span>
-    </div>
-  </div>'''
+    secrets_tab_html = '<p style="color:#888;padding:20px">TruffleHog scan report not available for this build.</p>'
 
 html = f'''<!DOCTYPE html>
 <html lang="en">
@@ -482,13 +459,6 @@ html = f'''<!DOCTYPE html>
   .remediation {{ background: #eafaf1; border-left: 4px solid #27ae60; border-radius: 6px;
                   padding: 12px 16px; margin-top: 4px; }}
   .remediation p {{ color: #1e8449; font-size: 13px; line-height: 1.6; }}
-  .placeholder-box {{ background: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 10px;
-                      padding: 40px; text-align: center; color: #6c757d; margin-top: 8px; }}
-  .placeholder-box h3 {{ font-size: 18px; margin-bottom: 10px; color: #495057; }}
-  .placeholder-box p  {{ font-size: 13px; line-height: 1.8; max-width: 560px; margin: 0 auto 16px; }}
-  .placeholder-box .tool-list {{ display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 16px; }}
-  .placeholder-box .tool-tag  {{ background: #e9ecef; border-radius: 20px; padding: 4px 14px;
-                                 font-size: 12px; font-weight: 600; color: #495057; }}
 </style>
 </head>
 <body>
