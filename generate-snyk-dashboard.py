@@ -272,9 +272,10 @@ iac_total     = iac['critical'] + iac['high'] + iac['medium'] + iac['low']
 dast_total    = dast['high'] + dast['medium'] + dast['low']
 secrets_total = secrets['high'] + secrets['medium']
 grand_total   = sca_total + sast_total + iac_total + dast_total + secrets_total
-high_crit     = (sca.get('critical', 0) + sca.get('high', 0) + sast.get('high', 0)
-                 + iac.get('critical', 0) + iac.get('high', 0) + dast.get('high', 0)
-                 + secrets.get('high', 0))
+critical      = (sca.get('critical', 0) + iac.get('critical', 0))
+high          = (sca.get('high', 0) + sast.get('high', 0) + iac.get('high', 0)
+                 + dast.get('high', 0) + secrets.get('high', 0))
+high_crit     = critical + high
 medium        = (sca.get('medium', 0) + sast.get('medium', 0) + iac.get('medium', 0)
                  + dast.get('medium', 0) + secrets.get('medium', 0))
 low           = sca.get('low', 0) + sast.get('low', 0) + iac.get('low', 0) + dast.get('low', 0)
@@ -392,20 +393,22 @@ html = f'''<!DOCTYPE html>
   header h1 span {{ color: #6c757d; font-size: 14px; font-weight: 400; }}
   header p      {{ color: #888; font-size: 13px; margin-top: 4px; }}
 
-  .cards {{ display: flex; flex-wrap: wrap; gap: 14px; margin: 28px 0; }}
+  .cards-row   {{ display: flex; gap: 14px; margin-bottom: 14px; }}
+  .cards-row:last-child {{ margin-bottom: 28px; }}
   .card  {{ background: #fff; border: 1px solid #dde1e7; border-radius: 10px;
-            padding: 18px 24px; text-align: center; min-width: 120px; }}
+            padding: 18px 24px; text-align: center; flex: 1; }}
   .card .num {{ font-size: 38px; font-weight: 700; line-height: 1; }}
   .card .lbl {{ font-size: 11px; color: #999; margin-top: 6px; text-transform: uppercase; letter-spacing: .5px; }}
-  .total .num {{ color: #222; }}
-  .dast  .num {{ color: #16a085; }}
-  .sca   .num {{ color: #e74c3c; }}
-  .sast  .num {{ color: #e67e22; }}
+  .total   .num {{ color: #222; }}
+  .dast    .num {{ color: #16a085; }}
+  .sca     .num {{ color: #e74c3c; }}
+  .sast    .num {{ color: #e67e22; }}
   .iac     .num {{ color: #8e44ad; }}
   .secrets .num {{ color: #95a5a6; }}
-  .hc    .num {{ color: #e74c3c; }}
-  .med   .num {{ color: #e67e22; }}
-  .lw    .num {{ color: #3498db; }}
+  .crit    .num {{ color: #c0392b; }}
+  .hc      .num {{ color: #e74c3c; }}
+  .med     .num {{ color: #e67e22; }}
+  .lw      .num {{ color: #3498db; }}
 
   .tabs       {{ display: flex; gap: 4px; }}
   .tab-btn    {{ padding: 10px 24px; border-radius: 8px 8px 0 0; border: 1px solid #dde1e7;
@@ -478,16 +481,21 @@ html = f'''<!DOCTYPE html>
   <p>Project: snyk-java-demo &nbsp;&middot;&nbsp; Scanned: {now}</p>
 </header>
 
-<div class="cards">
+<div class="cards-row">
   <div class="card total"><div class="num">{grand_total}</div><div class="lbl">Total Issues</div></div>
-  <div class="card dast"> <div class="num">{dast_total}</div><div class="lbl">DAST Issues</div></div>
-  <div class="card iac">  <div class="num">{iac_total}</div> <div class="lbl">IaC Issues</div></div>
-  <div class="card sca">  <div class="num">{sca_total}</div> <div class="lbl">SCA Issues</div></div>
-  <div class="card sast">    <div class="num">{sast_total}</div><div class="lbl">SAST Issues</div></div>
+</div>
+<div class="cards-row">
+  <div class="card dast">   <div class="num">{dast_total}</div><div class="lbl">DAST Issues</div></div>
+  <div class="card iac">    <div class="num">{iac_total}</div><div class="lbl">IaC Issues</div></div>
+  <div class="card sca">    <div class="num">{sca_total}</div><div class="lbl">SCA Issues</div></div>
+  <div class="card sast">   <div class="num">{sast_total}</div><div class="lbl">SAST Issues</div></div>
   <div class="card secrets"><div class="num">{'—' if not secrets['configured'] else secrets_total}</div><div class="lbl">Secrets</div></div>
-  <div class="card hc">   <div class="num">{high_crit}</div> <div class="lbl">High / Critical</div></div>
-  <div class="card med">  <div class="num">{medium}</div>    <div class="lbl">Medium</div></div>
-  <div class="card lw">   <div class="num">{low}</div>       <div class="lbl">Low</div></div>
+</div>
+<div class="cards-row">
+  <div class="card crit"><div class="num">{critical}</div><div class="lbl">Critical</div></div>
+  <div class="card hc">  <div class="num">{high}</div>    <div class="lbl">High</div></div>
+  <div class="card med"> <div class="num">{medium}</div>  <div class="lbl">Medium</div></div>
+  <div class="card lw">  <div class="num">{low}</div>     <div class="lbl">Low</div></div>
 </div>
 
 <div class="tabs">
