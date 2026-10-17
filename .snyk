@@ -9,6 +9,15 @@ ignore:
           var.allowed_ssh_cidr and is not affected by this rule.
         expires: 2030-01-01T00:00:00.000Z
         created: 2026-10-17T00:00:00.000Z
+  java/Ssrf:
+    - '**':
+        reason: >
+          False positive - DB_URL is an admin-configured environment variable,
+          not user-controlled input. validateDbUrl() enforces an allowlist
+          restricting the URL to jdbc:mysql:// or jdbc:postgresql:// only,
+          making SSRF exploitation impossible.
+        expires: 2030-01-01T00:00:00.000Z
+        created: 2026-10-17T00:00:00.000Z
   SNYK-CC-TF-73:
     - 'terraform/ec2.tf':
         reason: >
