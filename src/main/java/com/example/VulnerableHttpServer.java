@@ -27,7 +27,7 @@ public class VulnerableHttpServer {
     static void send(HttpExchange ex, int code, String contentType, String body) throws IOException {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         ex.getResponseHeaders().set("Content-Type", contentType);
-        ex.getResponseHeaders().set("Content-Security-Policy", "default-src 'self'");
+        ex.getResponseHeaders().set("Content-Security-Policy", "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
         ex.getResponseHeaders().set("X-Frame-Options", "DENY");
         ex.getResponseHeaders().set("Server", "Apache/2.4.50");
         ex.sendResponseHeaders(code, bytes.length);
