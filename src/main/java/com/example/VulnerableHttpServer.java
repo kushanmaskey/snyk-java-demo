@@ -32,6 +32,7 @@ public class VulnerableHttpServer {
         ex.getResponseHeaders().set("Cross-Origin-Opener-Policy", "same-origin");
         ex.getResponseHeaders().set("Cross-Origin-Resource-Policy", "same-origin");
         ex.getResponseHeaders().set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=(), fullscreen=(self)");
+        ex.getResponseHeaders().set("X-Content-Type-Options", "nosniff");
         ex.getResponseHeaders().set("X-Frame-Options", "DENY");
         ex.sendResponseHeaders(code, bytes.length);
         try (OutputStream os = ex.getResponseBody()) {
