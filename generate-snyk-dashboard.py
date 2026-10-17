@@ -395,7 +395,7 @@ html = f'''<!DOCTYPE html>
 
   .cards-row {{ display: flex; gap: 14px; margin-bottom: 14px; }}
   .card  {{ flex: 1; background: #fff; border: 1px solid #dde1e7; border-radius: 10px;
-            padding: 18px 24px; text-align: center; }}
+            padding: 18px 24px; text-align: left; }}
   .card .num {{ font-size: 38px; font-weight: 700; line-height: 1; }}
   .card .lbl {{ font-size: 11px; color: #999; margin-top: 6px; text-transform: uppercase; letter-spacing: .5px; }}
   .total .num {{ color: #222; }}
