@@ -82,9 +82,7 @@ public class VulnerableHttpServer {
     static class UserHandler implements HttpHandler {
         public void handle(HttpExchange ex) throws IOException {
             String name = queryParam(ex.getRequestURI().getQuery(), "name");
-            // SQLi: constructs SQL query with unsanitized input
-            String sql = "SELECT * FROM users WHERE username = '" + name + "'";
-            String html = "<html><body><h2>User Lookup</h2><p>Query: " + sql + "</p></body></html>";
+            String html = "<html><body><h2>User Lookup</h2><p>User: " + name + "</p></body></html>";
             send(ex, 200, "text/html", html);
         }
     }
