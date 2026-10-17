@@ -48,7 +48,7 @@ def jira_post(path, body):
         return None
 
 def fetch_existing_summaries():
-    jql       = f'project = "{PROJECT_KEY}" ORDER BY created ASC'
+    jql       = f'project = "{PROJECT_KEY}" AND statusCategory != Done ORDER BY created ASC'
     summaries = set()
     start     = 0
     while True:
