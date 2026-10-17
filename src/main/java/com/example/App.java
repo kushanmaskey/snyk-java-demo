@@ -11,7 +11,7 @@ public class App {
     // SAST Trigger 1: Hardcoded Secret / Credential
     private static final String DB_PASSWORD = System.getenv("DB_PASSWORD");
     private static final String DB_USER = System.getenv("DB_USER");
-    private static final String DB_URL = validateDbUrl(System.getenv("DB_URL"));
+    private static final String DB_URL = System.getenv("DB_URL");
 
     private static String validateDbUrl(String url) {
         if (url == null || url.isEmpty()) {
@@ -29,10 +29,9 @@ public class App {
         }
     }
 
-    // SAST Trigger 2: SQL Injection (CWE-89)
     public static void getUserData(String inputUsername) {
         try {
-            Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+            Connection conn = DriverManager.getConnection(validateDbUrl(DB_URL), DB_USER, DB_PASSWORD);
             Statement stmt = conn.createStatement();
             
             // Unsanitized input concatenated directly into SQL query
