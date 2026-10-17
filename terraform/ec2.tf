@@ -39,7 +39,8 @@ resource "aws_instance" "web" {
   ami                         = "ami-0c55b159cbfafe1f0"
   instance_type               = "t3.micro"
   security_groups             = [aws_security_group.web.name]
-  associate_public_ip_address = true
+  # No direct public IP — traffic reaches the instance via a load balancer in the public subnet
+  associate_public_ip_address = false
 
   # IMDSv2 enforced — blocks SSRF-based metadata credential theft
   metadata_options {
