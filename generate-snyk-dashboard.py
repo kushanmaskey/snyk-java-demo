@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
-import json
+import json, os
 from datetime import datetime
+
+# Accepted risks / false positives — excluded from dashboard counts and display.
+IAC_ACCEPTED  = {('SNYK-CC-TF-1', 'ec2.tf'), ('SNYK-CC-TF-73', 'ec2.tf')}
+SAST_ACCEPTED = {('java/Ssrf', 'src/main/java/com/example/App.java')}
 
 SCA_JSON     = 'snyk-sca-report.json'
 SAST_JSON    = 'snyk-sast-report.json'
@@ -102,17 +106,20 @@ def parse_sast(path):
     for run in data.get('runs', []):
         rules = {r['id']: r for r in run.get('tool', {}).get('driver', {}).get('rules', [])}
         for result in run.get('results', []):
-            sev     = sev_map.get(result.get('level', 'warning'), 'medium')
-            counts[sev] += 1
             rule_id = result.get('ruleId', '')
             rule    = rules.get(rule_id, {})
             locs    = result.get('locations', [])
             loc     = ''
+            uri     = ''
             if locs:
                 phys = locs[0].get('physicalLocation', {})
                 uri  = phys.get('artifactLocation', {}).get('uri', '')
                 line = phys.get('region', {}).get('startLine', '')
                 loc  = f"{uri}:{line}" if line else uri
+            if (rule_id, uri) in SAST_ACCEPTED:
+                continue
+            sev     = sev_map.get(result.get('level', 'warning'), 'medium')
+            counts[sev] += 1
             props    = rule.get('properties', {})
             cwes     = [f"CWE-{c}" for c in props.get('cwe', [])]
             help_txt = rule.get('help', {}).get('text', rule.get('fullDescription', {}).get('text', ''))
@@ -142,6 +149,8 @@ def parse_iac(path):
         target = file_result.get('targetFile', '')
         for issue in file_result.get('infrastructureAsCodeIssues', []):
             if issue.get('isIgnored'):
+                continue
+            if (issue.get('id', ''), os.path.basename(target)) in IAC_ACCEPTED:
                 continue
             sev = issue.get('severity', 'low').lower()
             if sev in counts:
