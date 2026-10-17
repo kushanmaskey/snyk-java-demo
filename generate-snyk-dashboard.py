@@ -367,7 +367,8 @@ if secrets['configured']:
     <tbody>{secrets_rows()}</tbody>
   </table>'''
 else:
-    secrets_tab_html = '<p style="color:#888;padding:20px">TruffleHog scan report not available for this build.</p>'
+    unavailable_msg  = 'TruffleHog scan report not available for this build.'
+    secrets_tab_html = f'<p style="color:#888;padding:20px">{unavailable_msg}</p>'
 
 html = f'''<!DOCTYPE html>
 <html lang="en">
