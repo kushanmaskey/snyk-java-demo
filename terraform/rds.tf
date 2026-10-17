@@ -27,6 +27,9 @@ resource "aws_db_instance" "app_db" {
   # Multi-AZ for high availability and failover
   multi_az = true
 
+  # Allow IAM roles to authenticate instead of static passwords
+  iam_database_authentication_enabled = true
+
   skip_final_snapshot = false
 }
 
