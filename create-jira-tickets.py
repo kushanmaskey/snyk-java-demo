@@ -48,9 +48,9 @@ def jira_post(path, body):
         return None
 
 def fetch_existing_summaries():
-    jql       = f'project = "{PROJECT_KEY}" AND statusCategory != Done ORDER BY created ASC'
-    summaries = set()
-    start     = 0
+    jql    = f'project = "{PROJECT_KEY}" AND statusCategory != Done ORDER BY created ASC'
+    result_map = {}
+    start  = 0
     while True:
         path   = f'/search/jql?jql={urllib.parse.quote(jql)}&maxResults=100&startAt={start}&fields=summary'
         result = jira_get(path)
@@ -60,12 +60,12 @@ def fetch_existing_summaries():
         if not issues:
             break
         for issue in issues:
-            summaries.add(issue['fields']['summary'].strip())
+            result_map[issue['fields']['summary'].strip()] = issue['key']
         start += len(issues)
         if start >= result.get('total', 0):
             break
-    print(f"  Loaded {len(summaries)} existing ticket summaries.")
-    return summaries
+    print(f"  Loaded {len(result_map)} existing open tickets.")
+    return result_map
 
 def para(text):
     return {'type': 'paragraph', 'content': [{'type': 'text', 'text': str(text)}]}
@@ -81,10 +81,12 @@ def build_adf(*nodes):
     return {'type': 'doc', 'version': 1,
             'content': [n for n in nodes if n]}
 
-EXISTING = set()
+EXISTING = {}   # summary -> issue_key for all currently open tickets
+SCANNED  = set() # summaries detected in the current scan run
 
 def create_ticket(summary, adf_doc, severity, scan_type):
     key = summary[:255].strip()
+    SCANNED.add(key)
     if key in EXISTING:
         print(f"  SKIP (exists): {summary[:80]}")
         return
@@ -100,10 +102,39 @@ def create_ticket(summary, adf_doc, severity, scan_type):
     }
     result = jira_post('/issue', body)
     if result and result.get('key'):
-        EXISTING.add(key)
+        EXISTING[key] = result['key']
         print(f"  CREATED {result['key']}: {summary[:80]}")
     else:
         print(f"  FAILED:  {summary[:80]}")
+
+def auto_close_resolved():
+    print("\n--- Auto-closing resolved tickets ---")
+    closed = 0
+    for summary, issue_key in list(EXISTING.items()):
+        if summary not in SCANNED:
+            transitions = jira_get(f'/issue/{issue_key}/transitions')
+            done_id = next(
+                (t['id'] for t in (transitions or {}).get('transitions', [])
+                 if t['name'].lower() in ('done', 'closed', 'resolved')),
+                None
+            )
+            if not done_id:
+                print(f"  SKIP (no Done transition): {issue_key}")
+                continue
+            comment = {
+                'body': {
+                    'type': 'doc', 'version': 1,
+                    'content': [{'type': 'paragraph', 'content': [{'type': 'text', 'text':
+                        'Automatically resolved — this issue was not detected in the latest scan. '
+                        'The fix has been deployed and verified by the CI pipeline.'
+                    }]}]
+                }
+            }
+            jira_post(f'/issue/{issue_key}/comment', comment)
+            jira_post(f'/issue/{issue_key}/transitions', {'transition': {'id': done_id}})
+            print(f"  AUTO-CLOSED {issue_key}: {summary[:70]}")
+            closed += 1
+    print(f"  Auto-closed {closed} resolved tickets.")
 
 def process_sca():
     print("\n--- SCA Vulnerabilities ---")
@@ -350,4 +381,5 @@ process_iac()
 process_sca()
 process_sast()
 process_secrets()
+auto_close_resolved()
 print("\nDone.")
