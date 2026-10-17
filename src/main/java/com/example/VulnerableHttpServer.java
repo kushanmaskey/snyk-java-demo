@@ -32,7 +32,6 @@ public class VulnerableHttpServer {
         ex.getResponseHeaders().set("Cross-Origin-Opener-Policy", "same-origin");
         ex.getResponseHeaders().set("Cross-Origin-Resource-Policy", "same-origin");
         ex.getResponseHeaders().set("X-Frame-Options", "DENY");
-        ex.getResponseHeaders().set("Server", "Apache/2.4.50");
         ex.sendResponseHeaders(code, bytes.length);
         try (OutputStream os = ex.getResponseBody()) {
             os.write(bytes);
