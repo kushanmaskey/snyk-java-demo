@@ -11,7 +11,17 @@ public class App {
     // SAST Trigger 1: Hardcoded Secret / Credential
     private static final String DB_PASSWORD = System.getenv("DB_PASSWORD");
     private static final String DB_USER = System.getenv("DB_USER");
-    private static final String DB_URL = System.getenv("DB_URL");
+    private static final String DB_URL = validateDbUrl(System.getenv("DB_URL"));
+
+    private static String validateDbUrl(String url) {
+        if (url == null || url.isEmpty()) {
+            throw new IllegalStateException("DB_URL environment variable is not set");
+        }
+        if (!url.startsWith("jdbc:mysql://") && !url.startsWith("jdbc:postgresql://")) {
+            throw new IllegalStateException("DB_URL must be a valid JDBC URL for mysql or postgresql");
+        }
+        return url;
+    }
     public static void main(String[] args) {
         if (args.length > 0) {
             getUserData(args[0]);
