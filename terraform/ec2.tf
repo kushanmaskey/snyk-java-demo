@@ -1,53 +1,64 @@
-# MISCONFIGURATION: Security group open to the world on all ports
 resource "aws_security_group" "web" {
   name        = "snyk-demo-web-sg"
   description = "Web server security group"
 
-  # MISCONFIGURATION: SSH open to entire internet
+  # HTTPS traffic from the internet — only what the web server needs
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # HTTP traffic (redirects to HTTPS)
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # SSH restricted to a known CIDR — supply your office/VPN IP via variable
   ingress {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [var.allowed_ssh_cidr]
   }
 
-  # MISCONFIGURATION: All ports open to entire internet
-  ingress {
-    from_port   = 0
-    to_port     = 65535
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # MISCONFIGURATION: Unrestricted outbound traffic
+  # Outbound HTTPS only — app only needs to call external APIs
   egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
-# MISCONFIGURATION: EC2 instance with public IP, no IMDSv2, unencrypted root volume
 resource "aws_instance" "web" {
   ami                         = "ami-0c55b159cbfafe1f0"
   instance_type               = "t3.micro"
   security_groups             = [aws_security_group.web.name]
-  associate_public_ip_address = true  # MISCONFIGURATION: Public IP exposed
+  associate_public_ip_address = true
 
-  # MISCONFIGURATION: IMDSv2 not enforced — vulnerable to SSRF metadata attacks
+  # IMDSv2 enforced — blocks SSRF-based metadata credential theft
   metadata_options {
     http_endpoint               = "enabled"
-    http_tokens                 = "optional"  # Should be "required"
-    http_put_response_hop_limit = 2           # Should be 1
+    http_tokens                 = "required"  # IMDSv2 only
+    http_put_response_hop_limit = 1           # blocks container access to metadata
   }
 
   root_block_device {
     volume_size = 20
-    encrypted   = true  # MISCONFIGURATION: Root volume not encrypted
+    encrypted   = true
   }
 
   tags = {
     Name = "snyk-demo-web"
   }
+}
+
+variable "allowed_ssh_cidr" {
+  description = "CIDR range allowed to SSH — set to your office or VPN IP, e.g. 203.0.113.0/24"
+  type        = string
 }
