@@ -42,7 +42,8 @@ def jira_post(path, body):
                                   data=data, headers=headers(), method='POST')
     try:
         with urllib.request.urlopen(req) as r:
-            return json.loads(r.read())
+            body = r.read()
+            return json.loads(body) if body else {}
     except urllib.error.HTTPError as e:
         print(f"  POST error {e.code}: {e.read().decode()[:200]}")
         return None
