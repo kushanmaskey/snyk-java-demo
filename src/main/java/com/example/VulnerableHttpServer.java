@@ -29,6 +29,7 @@ public class VulnerableHttpServer {
         ex.getResponseHeaders().set("Content-Type", contentType);
         ex.getResponseHeaders().set("Content-Security-Policy", "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
         ex.getResponseHeaders().set("Cross-Origin-Embedder-Policy", "require-corp");
+        ex.getResponseHeaders().set("Cross-Origin-Opener-Policy", "same-origin");
         ex.getResponseHeaders().set("X-Frame-Options", "DENY");
         ex.getResponseHeaders().set("Server", "Apache/2.4.50");
         ex.sendResponseHeaders(code, bytes.length);
