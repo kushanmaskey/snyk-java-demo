@@ -1,4 +1,3 @@
-# MISCONFIGURATION: RDS with no encryption, public access, no backups, no deletion protection
 resource "aws_db_instance" "app_db" {
   identifier        = "snyk-demo-db"
   engine            = "mysql"
@@ -8,25 +7,31 @@ resource "aws_db_instance" "app_db" {
 
   db_name  = "appdb"
   username = "admin"
-  password = "SuperSecret123!"  # MISCONFIGURATION: Hardcoded credentials
+  password = var.db_password   # sourced from a variable, never hardcoded
 
-  # MISCONFIGURATION: Database publicly accessible from internet
-  publicly_accessible = true
+  # Database is NOT reachable from the public internet
+  publicly_accessible = false
 
-  # MISCONFIGURATION: Storage not encrypted
-  storage_encrypted = false
+  # Encrypt data at rest using AWS-managed key
+  storage_encrypted = true
 
-  # MISCONFIGURATION: Automated backups disabled
-  backup_retention_period = 0
+  # Keep 7 days of automated backups for recovery
+  backup_retention_period = 7
 
-  # MISCONFIGURATION: No deletion protection
-  deletion_protection = false
+  # Prevent accidental deletion
+  deletion_protection = true
 
-  # MISCONFIGURATION: Minor version upgrades disabled
-  auto_minor_version_upgrade = false
+  # Automatically apply minor version patches (security fixes)
+  auto_minor_version_upgrade = true
 
-  # MISCONFIGURATION: No Multi-AZ for high availability
-  multi_az = false
+  # Multi-AZ for high availability and failover
+  multi_az = true
 
-  skip_final_snapshot = true
+  skip_final_snapshot = false
+}
+
+variable "db_password" {
+  description = "RDS master password — supply via environment variable TF_VAR_db_password or AWS Secrets Manager"
+  type        = string
+  sensitive   = true
 }
