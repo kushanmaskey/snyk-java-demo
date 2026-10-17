@@ -85,6 +85,16 @@ def build_adf(*nodes):
 EXISTING = {}   # summary -> issue_key for all currently open tickets
 SCANNED  = set() # summaries detected in the current scan run
 
+# Accepted risks / false positives — skip ticket creation for these findings.
+# Format: (rule_id, file_basename) for IAC; (rule_id, file_uri) for SAST.
+IAC_ACCEPTED = {
+    ('SNYK-CC-TF-1',  'ec2.tf'),  # HTTP/HTTPS open to internet — required for public web server
+    ('SNYK-CC-TF-73', 'ec2.tf'),  # Egress port-443-only — not unrestricted egress
+}
+SAST_ACCEPTED = {
+    ('java/Ssrf', 'src/main/java/com/example/App.java'),  # DB_URL validated to JDBC scheme only
+}
+
 def create_ticket(summary, adf_doc, severity, scan_type):
     key = summary[:255].strip()
     SCANNED.add(key)
@@ -208,6 +218,9 @@ def process_sast():
                 uri  = phys.get('artifactLocation', {}).get('uri', '')
                 line = phys.get('region', {}).get('startLine', '')
                 loc  = f"{uri}:{line}" if line else uri
+            if (rule_id, uri) in SAST_ACCEPTED:
+                print(f"  SKIP (accepted risk): {rule_id} in {uri}")
+                continue
             msg     = result.get('message', {}).get('text', '')
             title   = rule.get('shortDescription', {}).get('text', rule_id)
             help_t  = rule.get('help', {}).get('text', '')[:300]
@@ -286,8 +299,12 @@ def process_iac():
     for file_result in data:
         target = file_result.get('targetFile', '')
         for issue in file_result.get('infrastructureAsCodeIssues', []):
-            if not issue.get('isIgnored'):
-                all_issues.append((issue, target))
+            if issue.get('isIgnored'):
+                continue
+            if (issue.get('id', ''), os.path.basename(target)) in IAC_ACCEPTED:
+                print(f"  SKIP (accepted risk): {issue.get('id')} in {target}")
+                continue
+            all_issues.append((issue, target))
     all_issues.sort(key=lambda x: SEV_ORDER.get(x[0].get('severity', 'low').lower(), 3))
 
     for issue, target in all_issues:
