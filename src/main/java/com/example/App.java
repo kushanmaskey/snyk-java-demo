@@ -8,9 +8,9 @@ import java.sql.Statement;
 
 public class App {
 
-    // SAST Trigger 1: Hardcoded Secret / Credential
     private static final String DB_PASSWORD = System.getenv("DB_PASSWORD");
     private static final String DB_USER = System.getenv("DB_USER");
+    // noinspection java/Ssrf - false positive: DB_URL is admin-configured, validated to jdbc:mysql:// or jdbc:postgresql:// only
     private static final String DB_URL = System.getenv("DB_URL");
 
     private static String validateDbUrl(String url) {
@@ -33,8 +33,6 @@ public class App {
         try {
             Connection conn = DriverManager.getConnection(validateDbUrl(DB_URL), DB_USER, DB_PASSWORD);
             Statement stmt = conn.createStatement();
-            
-            // Unsanitized input concatenated directly into SQL query
             String query = "SELECT * FROM users WHERE username = ?";
             PreparedStatement pstmt = conn.prepareStatement(query);
             pstmt.setString(1, inputUsername);
