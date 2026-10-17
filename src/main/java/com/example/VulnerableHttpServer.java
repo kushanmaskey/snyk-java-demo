@@ -27,7 +27,9 @@ public class VulnerableHttpServer {
     static void send(HttpExchange ex, int code, String contentType, String body) throws IOException {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         ex.getResponseHeaders().set("Content-Type", contentType);
-        ex.getResponseHeaders().set("Content-Security-Policy", "default-src 'self'");
+        ex.getResponseHeaders().set("Content-Security-Policy", "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
+        ex.getResponseHeaders().set("Cross-Origin-Embedder-Policy", "require-corp");
+        ex.getResponseHeaders().set("Cross-Origin-Opener-Policy", "same-origin");
         ex.getResponseHeaders().set("X-Frame-Options", "DENY");
         ex.getResponseHeaders().set("Server", "Apache/2.4.50");
         ex.sendResponseHeaders(code, bytes.length);
@@ -56,8 +58,8 @@ public class VulnerableHttpServer {
 
     static class HomeHandler implements HttpHandler {
         public void handle(HttpExchange ex) throws IOException {
-            ex.getResponseHeaders().add("Set-Cookie", "session=abc123; Path=/; HttpOnly");
-            ex.getResponseHeaders().add("Set-Cookie", "user=admin; Path=/; HttpOnly");
+            ex.getResponseHeaders().add("Set-Cookie", "session=abc123; Path=/; HttpOnly; SameSite=Strict");
+            ex.getResponseHeaders().add("Set-Cookie", "user=admin; Path=/; HttpOnly; SameSite=Strict");
             String html = "<html><body><h1>Demo App</h1><ul>" +
                 "<li><a href='/search?q=hello'>Search</a></li>" +
                 "<li><a href='/user?name=admin'>User Lookup</a></li>" +
@@ -72,7 +74,7 @@ public class VulnerableHttpServer {
         public void handle(HttpExchange ex) throws IOException {
             String q = queryParam(ex.getRequestURI().getQuery(), "q");
             // Insecure cookie on search results page — ZAP Plugin 10010 and 10011
-            ex.getResponseHeaders().add("Set-Cookie", "search_session=xyz789; Path=/; HttpOnly");
+            ex.getResponseHeaders().add("Set-Cookie", "search_session=xyz789; Path=/; HttpOnly; SameSite=Strict");
             // XSS: reflects user input directly into HTML without encoding
             String html = "<html><body><h2>Search Results</h2><p>You searched for: " + q + "</p></body></html>";
             send(ex, 200, "text/html", html);
@@ -82,9 +84,7 @@ public class VulnerableHttpServer {
     static class UserHandler implements HttpHandler {
         public void handle(HttpExchange ex) throws IOException {
             String name = queryParam(ex.getRequestURI().getQuery(), "name");
-            // SQLi: constructs SQL query with unsanitized input
-            String sql = "SELECT * FROM users WHERE username = '" + name + "'";
-            String html = "<html><body><h2>User Lookup</h2><p>Query: " + sql + "</p></body></html>";
+            String html = "<html><body><h2>User Lookup</h2><p>User: " + name + "</p></body></html>";
             send(ex, 200, "text/html", html);
         }
     }
