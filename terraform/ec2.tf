@@ -42,6 +42,9 @@ resource "aws_instance" "web" {
   # No direct public IP — traffic reaches the instance via a load balancer in the public subnet
   associate_public_ip_address = false
 
+  # Prevent accidental or unauthorised termination via the API
+  disable_api_termination = true
+
   # IMDSv2 enforced — blocks SSRF-based metadata credential theft
   metadata_options {
     http_endpoint               = "enabled"
