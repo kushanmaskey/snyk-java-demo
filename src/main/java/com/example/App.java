@@ -10,7 +10,6 @@ public class App {
 
     private static final String DB_PASSWORD = System.getenv("DB_PASSWORD");
     private static final String DB_USER = System.getenv("DB_USER");
-    // noinspection java/Ssrf - false positive: DB_URL is admin-configured, validated to jdbc:mysql:// or jdbc:postgresql:// only
     private static final String DB_URL = System.getenv("DB_URL");
 
     private static String validateDbUrl(String url) {
