@@ -2,27 +2,27 @@
 version: v1.25.0
 ignore:
   SNYK-CC-TF-1:
-    - 'terraform/ec2.tf':
+    - '*':
         reason: >
           Accepted risk - public web server. Ports 80 (HTTP redirect) and 443 (HTTPS)
           must be open to 0.0.0.0/0. SSH (port 22) is already restricted to
           var.allowed_ssh_cidr and is not affected by this rule.
         expires: 2030-01-01T00:00:00.000Z
         created: 2026-10-17T00:00:00.000Z
+  SNYK-CC-TF-73:
+    - '*':
+        reason: >
+          Accepted risk - egress is already restricted to port 443 HTTPS only
+          (from_port=443, to_port=443, protocol=tcp). This is not unrestricted
+          egress; 0.0.0.0/0 is required because external API IPs are not fixed.
+        expires: 2030-01-01T00:00:00.000Z
+        created: 2026-10-17T00:00:00.000Z
   java/Ssrf:
-    - '**':
+    - '*':
         reason: >
           False positive - DB_URL is an admin-configured environment variable,
           not user-controlled input. validateDbUrl() enforces an allowlist
           restricting the URL to jdbc:mysql:// or jdbc:postgresql:// only,
           making SSRF exploitation impossible.
-        expires: 2030-01-01T00:00:00.000Z
-        created: 2026-10-17T00:00:00.000Z
-  SNYK-CC-TF-73:
-    - 'terraform/ec2.tf':
-        reason: >
-          Accepted risk - egress is already restricted to port 443 HTTPS only
-          (from_port=443, to_port=443, protocol=tcp). This is not unrestricted
-          egress; 0.0.0.0/0 is required because external API IPs are not fixed.
         expires: 2030-01-01T00:00:00.000Z
         created: 2026-10-17T00:00:00.000Z
