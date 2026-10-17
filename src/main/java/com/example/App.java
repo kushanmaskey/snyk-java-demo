@@ -49,11 +49,12 @@ public class App {
         }
     }
 
-    // SAST Trigger 3: Command Injection (CWE-78)
     public static void executeUserCommand(String userParam) {
+        if (userParam == null || !userParam.matches("[a-zA-Z0-9.\\-]+")) {
+            throw new IllegalArgumentException("Invalid host parameter");
+        }
         try {
-            // Unsanitized user input passed to OS runtime command execution
-            Runtime.getRuntime().exec("ping -c 1 " + userParam);
+            Runtime.getRuntime().exec(new String[]{"ping", "-c", "1", userParam});
         } catch (Exception e) {
             e.printStackTrace();
         }
