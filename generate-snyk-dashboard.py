@@ -393,11 +393,13 @@ html = f'''<!DOCTYPE html>
   header h1 span {{ color: #6c757d; font-size: 14px; font-weight: 400; }}
   header p      {{ color: #888; font-size: 13px; margin-top: 4px; }}
 
-  .cards-row {{ display: flex; gap: 14px; margin-bottom: 14px; }}
+  .cards-row {{ display: flex; gap: 10px; margin-bottom: 10px; }}
   .card  {{ flex: 1; background: #fff; border: 1px solid #dde1e7; border-radius: 10px;
-            padding: 18px 24px; text-align: left; }}
-  .card .num {{ font-size: 38px; font-weight: 700; line-height: 1; }}
-  .card .lbl {{ font-size: 11px; color: #999; margin-top: 6px; text-transform: uppercase; letter-spacing: .5px; }}
+            padding: 10px 16px; text-align: left; }}
+  .card .num {{ font-size: 26px; font-weight: 700; line-height: 1; }}
+  .card .lbl {{ font-size: 10px; color: #999; margin-top: 4px; text-transform: uppercase; letter-spacing: .5px; }}
+  .card.clickable {{ cursor: pointer; transition: border-color .15s, box-shadow .15s; }}
+  .card.clickable:hover {{ border-color: #adb5bd; box-shadow: 0 2px 8px rgba(0,0,0,.08); }}
   .total .num {{ color: #222; }}
   .dast  .num {{ color: #16a085; }}
   .sca   .num {{ color: #e74c3c; }}
@@ -484,11 +486,11 @@ html = f'''<!DOCTYPE html>
   <div class="card total"><div class="num">{grand_total}</div><div class="lbl">Total Issues</div></div>
 </div>
 <div class="cards-row">
-  <div class="card dast">    <div class="num">{dast_total}</div><div class="lbl">DAST Issues</div></div>
-  <div class="card iac">     <div class="num">{iac_total}</div> <div class="lbl">IaC Issues</div></div>
-  <div class="card sca">     <div class="num">{sca_total}</div> <div class="lbl">SCA Issues</div></div>
-  <div class="card sast">    <div class="num">{sast_total}</div><div class="lbl">SAST Issues</div></div>
-  <div class="card secrets"> <div class="num">{'—' if not secrets['configured'] else secrets_total}</div><div class="lbl">Secrets</div></div>
+  <div class="card dast    clickable" onclick="showTabFromCard('dast')"   ><div class="num">{dast_total}</div><div class="lbl">DAST Issues</div></div>
+  <div class="card iac     clickable" onclick="showTabFromCard('iac')"    ><div class="num">{iac_total}</div> <div class="lbl">IaC Issues</div></div>
+  <div class="card sca     clickable" onclick="showTabFromCard('sca')"    ><div class="num">{sca_total}</div> <div class="lbl">SCA Issues</div></div>
+  <div class="card sast    clickable" onclick="showTabFromCard('sast')"   ><div class="num">{sast_total}</div><div class="lbl">SAST Issues</div></div>
+  <div class="card secrets clickable" onclick="showTabFromCard('secrets')"><div class="num">{'—' if not secrets['configured'] else secrets_total}</div><div class="lbl">Secrets</div></div>
 </div>
 <div class="cards-row">
   <div class="card crit"><div class="num">{critical}</div><div class="lbl">Critical</div></div>
@@ -498,11 +500,11 @@ html = f'''<!DOCTYPE html>
 </div>
 
 <div class="tabs">
-  <button class="tab-btn active" onclick="showTab('dast', this)">DAST &mdash; Runtime ({dast_total})</button>
-  <button class="tab-btn"        onclick="showTab('iac', this)">IaC &mdash; Infrastructure ({iac_total})</button>
-  <button class="tab-btn"        onclick="showTab('sca', this)">SCA &mdash; Dependencies ({sca_total})</button>
-  <button class="tab-btn"        onclick="showTab('sast', this)">SAST &mdash; Code Security ({sast_total})</button>
-  <button class="tab-btn"        onclick="showTab('secrets', this)">Secrets ({secrets_total if secrets['configured'] else '—'})</button>
+  <button class="tab-btn active" data-tab="dast"    onclick="showTab('dast', this)">DAST &mdash; Runtime ({dast_total})</button>
+  <button class="tab-btn"        data-tab="iac"     onclick="showTab('iac', this)">IaC &mdash; Infrastructure ({iac_total})</button>
+  <button class="tab-btn"        data-tab="sca"     onclick="showTab('sca', this)">SCA &mdash; Dependencies ({sca_total})</button>
+  <button class="tab-btn"        data-tab="sast"    onclick="showTab('sast', this)">SAST &mdash; Code Security ({sast_total})</button>
+  <button class="tab-btn"        data-tab="secrets" onclick="showTab('secrets', this)">Secrets ({secrets_total if secrets['configured'] else '—'})</button>
 </div>
 
 <div id="dast" class="tab-panel active">
@@ -605,6 +607,10 @@ function showTab(id, btn) {{
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   btn.classList.add('active');
+}}
+function showTabFromCard(id) {{
+  const btn = document.querySelector(`.tab-btn[data-tab="${{id}}"]`);
+  if (btn) showTab(id, btn);
 }}
 
 function sevColor(s) {{
